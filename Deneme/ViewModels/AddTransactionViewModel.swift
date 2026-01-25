@@ -71,6 +71,10 @@ class AddTransactionViewModel: ObservableObject {
         
         do {
             try await firestoreService.addTransaction(walletId: walletId, transaction: newTransaction)
+            
+            // Post notification for optimistic updates
+            NotificationCenter.default.post(name: .transactionAdded, object: newTransaction)
+            
             self.isLoading = false
             self.isSuccess = true
         } catch {

@@ -38,7 +38,9 @@ struct Wallet: Identifiable, Codable, Equatable {
     
     func canEdit(userId: String) -> Bool {
         if isOwner(userId: userId) { return true }
-        let role = permissions[userId] ?? "editor" // Default to editor if not specified (backward compatibility)
-        return role == "editor"
+        let role = permissions[userId] ?? "editor" 
+        // Backward compatibility: if not in permissions but in members, default to 'editor'.
+        // BUT if it is explicitly 'pending', they CANNOT edit.
+        return role == "editor" // This automatically returns false for "pending", "viewer", etc.
     }
 }

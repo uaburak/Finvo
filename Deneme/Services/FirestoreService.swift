@@ -18,7 +18,7 @@ class FirestoreService: ObservableObject {
     // MARK: - Wallet Operations
     
     /// Create a new wallet
-    func createWallet(name: String, type: WalletType, context: WalletContext, performAsUser uid: String) async throws {
+    func createWallet(name: String, type: WalletType, context: WalletContext, performAsUser uid: String) async throws -> Wallet {
         let newWalletRef = db.collection("wallets").document()
         
         let wallet = Wallet(
@@ -32,6 +32,13 @@ class FirestoreService: ObservableObject {
         )
         
         try newWalletRef.setData(from: wallet)
+        
+        // Optimistic Update
+        DispatchQueue.main.async {
+            self.wallets.append(wallet)
+        }
+        
+        return wallet
     }
     
     /// Listen for wallets where the user is a member
@@ -59,7 +66,15 @@ class FirestoreService: ObservableObject {
                 self.wallets = documents.compactMap { document in
                     try? document.data(as: Wallet.self)
                 }
+                self.wallets = documents.compactMap { document in
+                    try? document.data(as: Wallet.self)
+                }
             }
+    }
+    
+    func getWallet(id: String) async throws -> Wallet {
+        let doc = try await db.collection("wallets").document(id).getDocument()
+        return try doc.data(as: Wallet.self)
     }
     
     func stopListeningWallets() {
@@ -69,6 +84,11 @@ class FirestoreService: ObservableObject {
     }
     
     func deleteWallet(walletId: String) async throws {
+        // Optimistic Update: Remove locally first
+        DispatchQueue.main.async {
+            self.wallets.removeAll { $0.id == walletId }
+        }
+        
         // 1. Delete transactions (In a real app, use Cloud Functions or batch delete)
         // For MVP, we might leave them orphaned or try to delete a batch.
         // Let's just delete the wallet document for now.
@@ -76,6 +96,11 @@ class FirestoreService: ObservableObject {
     }
     
     func leaveWallet(walletId: String, userId: String) async throws {
+        // Optimistic Update: Remove locally first
+        DispatchQueue.main.async {
+            self.wallets.removeAll { $0.id == walletId }
+        }
+        
         // Remove user from members array and permissions map
         try await removeMember(walletId: walletId, userId: userId)
     }
@@ -256,6 +281,11 @@ class FirestoreService: ObservableObject {
         )
         
         try db.collection("invites").addDocument(from: inviteData)
+        
+        // Pre-add member as "pending" so they can update themselves later
+        // "pending" role should block them from viewing details if we enforce it in Rules,
+        // or just block editing in UI.
+        try await addMember(walletId: walletId, userId: toUser.uid, role: "pending")
     }
     
     func fetchPendingInvites(forUser userId: String) async throws -> [Invite] {
@@ -275,11 +305,35 @@ class FirestoreService: ObservableObject {
             // 1. Update invite status
             try await inviteRef.updateData(["status": InviteStatus.accepted.rawValue])
             
-            // 2. Add member to wallet
-            try await addMember(walletId: invite.walletId, userId: invite.toUserId, role: invite.role)
+            // 2. Upgrade member role from "pending" to "editor" (or whatever invite role was)
+            // Note: User is already in 'members' array from sendInvite step.
+            try await updateMemberRole(walletId: invite.walletId, userId: invite.toUserId, newRole: "editor")
+            
+            // 3. Fetch the now-accessible wallet and add to local list (Optimistic-ish)
+            // Since rules now allow reading, this fetch should succeed.
+            if let acceptedWallet = try? await getWallet(id: invite.walletId) {
+                DispatchQueue.main.async {
+                    if !self.wallets.contains(where: { $0.id == acceptedWallet.id }) {
+                        self.wallets.append(acceptedWallet)
+                    }
+                }
+            }
         } else {
             // Update status to rejected
             try await inviteRef.updateData(["status": InviteStatus.rejected.rawValue])
+            
+            // If rejected, REMOVE them from pending members
+            try await removeMember(walletId: invite.walletId, userId: invite.toUserId)
+            
+            // Send notification to the inviter
+            // We need to fetch the invite details (which we have) to know who sent it
+            try? await sendNotification(
+                toUserId: invite.fromUserId,
+                title: "Davet Reddedildi",
+                message: "\(invite.toUsername) cüzdan davetinizi reddetti.",
+                type: .rejection,
+                relatedId: invite.walletId
+            )
         }
     }
     
@@ -325,6 +379,35 @@ class FirestoreService: ObservableObject {
             try await requestRef.updateData(["status": PermissionRequestStatus.rejected.rawValue])
         }
     }
+    // MARK: - Notifications (Generic)
+    
+    func sendNotification(toUserId: String, title: String, message: String, type: NotificationType, relatedId: String? = nil) async throws {
+        let notification = AppNotification(
+            userId: toUserId,
+            title: title,
+            message: message,
+            type: type,
+            relatedId: relatedId,
+            isRead: false,
+            createdAt: Date()
+        )
+        try db.collection("notifications").addDocument(from: notification)
+    }
+    
+    func fetchNotifications(forUser userId: String) async throws -> [AppNotification] {
+        let snapshot = try await db.collection("notifications")
+            .whereField("userId", isEqualTo: userId)
+            .order(by: "createdAt", descending: true)
+            .limit(to: 20)
+            .getDocuments()
+            
+        return snapshot.documents.compactMap { try? $0.data(as: AppNotification.self) }
+    }
+    
+    func markNotificationRead(_ notificationId: String) async throws {
+        try await db.collection("notifications").document(notificationId).updateData(["isRead": true])
+    }
+    
     // MARK: - Data Repair (Temporary)
     func repairTransactions() async throws -> String {
         var log = "Onarım Başlatıldı...\n"

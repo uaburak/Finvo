@@ -11,6 +11,7 @@ struct DashboardView: View {
     @State private var showManageWallets = false
     @State private var showPermissionAlert = false
     @State private var showRequestSentAlert = false
+    @State private var loadedWalletId: String?
     
     var body: some View {
         NavigationStack {
@@ -180,13 +181,17 @@ struct DashboardView: View {
                 if let uid = authManager.user?.uid {
                     FirestoreService.shared.startListeningWallets(forUser: uid)
                 }
-                // Initial load
+                // Initial load only if needed
                 if let wallet = walletManager.selectedWallet {
-                    Task { await viewModel.refreshDashboard(for: wallet) }
+                    if loadedWalletId != wallet.id {
+                        loadedWalletId = wallet.id
+                        Task { await viewModel.refreshDashboard(for: wallet) }
+                    }
                 }
             }
             .onChange(of: walletManager.selectedWallet) { _, newWallet in
                 if let wallet = newWallet {
+                    loadedWalletId = wallet.id
                     Task { await viewModel.refreshDashboard(for: wallet) }
                 }
             }

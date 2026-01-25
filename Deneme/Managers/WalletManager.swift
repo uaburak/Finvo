@@ -54,4 +54,22 @@ class WalletManager: ObservableObject {
             }
         }
     }
+    
+    func removeWallet(id: String) {
+        // Optimistically remove from list
+        if let index = wallets.firstIndex(where: { $0.id == id }) {
+            wallets.remove(at: index)
+        }
+        
+        // If the removed wallet was selected, select another one
+        if selectedWallet?.id == id {
+            self.selectedWallet = wallets.first
+            // Clear persistence if empty
+            if self.selectedWallet == nil {
+                UserDefaults.standard.removeObject(forKey: "lastSelectedWalletId")
+            } else if let newId = self.selectedWallet?.id {
+                UserDefaults.standard.set(newId, forKey: "lastSelectedWalletId")
+            }
+        }
+    }
 }

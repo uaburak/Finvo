@@ -14,13 +14,49 @@ class DashboardViewModel: ObservableObject {
     private let firestoreService = FirestoreService.shared
     private var cancellables = Set<AnyCancellable>()
     
-    // No init needed for listening wallets anymore, handled by WalletManager
+    init() {
+        // Listen for new transactions (Optimistic Update)
+        NotificationCenter.default.publisher(for: .transactionAdded)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                guard let self = self, let transaction = notification.object as? Transaction else { return }
+                self.handleNewTransaction(transaction)
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func handleNewTransaction(_ transaction: Transaction) {
+        // 1. Add to recent list
+        self.recentTransactions.insert(transaction, at: 0)
+        if self.recentTransactions.count > 5 {
+            self.recentTransactions.removeLast()
+        }
+        
+        // 2. Update Stats (Simple addition for current month logic)
+        // Check if transaction is in current month? 
+        // For MVP simplicity, assume "Add" happens mostly for "Now", so yes.
+        if transaction.type == .income {
+            self.monthlyIncome += transaction.amount
+        } else {
+            self.monthlyExpense += transaction.amount
+        }
+        
+        // 3. Update Balance
+        // If balance is net for month:
+        self.totalBalance = self.monthlyIncome - self.monthlyExpense
+    }
     
     func refreshDashboard(for wallet: Wallet) async {
         guard let walletId = wallet.id else { return }
         
         isLoading = true
         errorMessage = nil
+        
+        // Reset data immediately to prevent showing previous wallet's data while loading
+        self.recentTransactions = []
+        self.totalBalance = 0
+        self.monthlyIncome = 0
+        self.monthlyExpense = 0
         
         do {
             // 1. Fetch recent transactions (Limit 5)

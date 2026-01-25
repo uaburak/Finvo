@@ -1,53 +1,83 @@
 import Foundation
 import Combine
 import FirebaseAuth
-// Ensure AuthenticationManager is accessible, it's not a framework but a project file, so no import needed for it usually.
-// But check imports.
-import Combine
-import FirebaseAuth
 
 @MainActor
 class NotificationsViewModel: ObservableObject {
     @Published var invites: [Invite] = []
+    @Published var appNotifications: [AppNotification] = []
+    @Published var isLoading = false
+    
+    // We can keep PermissionRequests if needed, but primary focus is invites.
     @Published var permissionRequests: [PermissionRequest] = []
     
     private let firestoreService = FirestoreService.shared
+    private let authManager = AuthenticationManager.shared
     
     func refresh() async {
+        isLoading = true
         await fetchInvites()
-        await fetchRequests()
+        await fetchAppNotifications()
+        // await fetchRequests() // Keep if needed
+        isLoading = false
     }
     
     func fetchInvites() async {
-        guard let uid = AuthenticationManager.shared.user?.uid else { return }
+        guard let uid = authManager.user?.uid else { return }
         do {
-            self.invites = try await firestoreService.fetchPendingInvites(forUser: uid)
+            let fetched = try await firestoreService.fetchPendingInvites(forUser: uid)
+            self.invites = fetched
         } catch {
-            print("Error fetching invites: \(error)")
+            print("Davetler yüklenemedi: \(error)")
         }
     }
     
-    func fetchRequests() async {
-        guard let uid = AuthenticationManager.shared.user?.uid else { return }
+    func fetchAppNotifications() async {
+        guard let uid = authManager.user?.uid else { return }
         do {
-            self.permissionRequests = try await firestoreService.fetchPermissionRequests(forOwner: uid)
+            let fetched = try await firestoreService.fetchNotifications(forUser: uid)
+            self.appNotifications = fetched
         } catch {
-            print("Error fetching requests: \(error)")
+            print("Bildirimler yüklenemedi: \(error)")
         }
     }
     
+    // Action: Accept Invite
     func accept(_ invite: Invite) async {
-        try? await firestoreService.respondToInvite(invite, accept: true)
-        await fetchInvites()
+        do {
+            try await firestoreService.respondToInvite(invite, accept: true)
+            // Refresh logic to remove from list
+            await fetchInvites()
+        } catch {
+            print("Kabul hatası: \(error)")
+        }
     }
     
+    // Action: Reject Invite
     func reject(_ invite: Invite) async {
-        try? await firestoreService.respondToInvite(invite, accept: false)
-        await fetchInvites()
+        do {
+            try await firestoreService.respondToInvite(invite, accept: false)
+            await fetchInvites()
+        } catch {
+            print("Ret hatası: \(error)")
+        }
     }
     
+    func markRead(_ notification: AppNotification) async {
+        guard let id = notification.id else { return }
+        try? await firestoreService.markNotificationRead(id)
+        if let index = appNotifications.firstIndex(where: { $0.id == id }) {
+            appNotifications[index].isRead = true
+        }
+    }
+    
+    // Permission requests logic (Optional based on rewrite scope, but keeping for compatibility)
+    func fetchRequests() async {
+        guard let uid = authManager.user?.uid else { return }
+        try? self.permissionRequests = await firestoreService.fetchPermissionRequests(forOwner: uid)
+    }
     func respondToPermission(_ request: PermissionRequest, accept: Bool) async {
-        try? await firestoreService.respondToPermissionRequest(request, accept: accept)
-        await fetchRequests()
+           try? await firestoreService.respondToPermissionRequest(request, accept: accept)
+           await fetchRequests()
     }
 }

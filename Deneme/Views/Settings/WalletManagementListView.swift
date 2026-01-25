@@ -8,7 +8,7 @@ struct WalletManagementListView: View {
     var body: some View {
         List {
             ForEach(walletManager.wallets) { wallet in
-                NavigationLink(destination: WalletDetailView(wallet: wallet)) {
+                NavigationLink(destination: WalletDetailView(initialWallet: wallet)) {
                     HStack {
                         VStack(alignment: .leading) {
                             Text(wallet.name)
