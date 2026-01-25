@@ -1,24 +1,26 @@
-//
-//  ContentView.swift
-//  Deneme
-//
-//  Created by Burak KOÇ on 19.11.2025.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var authManager: AuthenticationManager
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            if authManager.isAuthenticated {
+                if authManager.isProfileComplete {
+                    MainTabView()
+                } else {
+                    ProfileCreationView()
+                }
+            } else {
+                LoginView()
+            }
         }
-        .padding()
+        .animation(.default, value: authManager.isAuthenticated)
+        .animation(.default, value: authManager.isProfileComplete)
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(AuthenticationManager.shared)
 }

@@ -1,0 +1,25 @@
+/* 
+  Localizable.strings
+  Finvo
+
+  Created for Localization support.
+*/
+
+// MARK: - Turkish (Base)
+"ozet" = "Özet";
+"islemler" = "İşlemler";
+"analiz" = "Analiz";
+"ayarlar" = "Ayarlar";
+"gelir" = "Gelir";
+"gider" = "Gider";
+"ekle" = "Ekle";
+"kaydet" = "Kaydet";
+"iptal" = "İptal";
+
+// MARK: - English (Example for mapping)
+// "ozet" = "Summary";
+// "islemler" = "Transactions";
+// "analiz" = "Analytics";
+// "ayarlar" = "Settings";
+// "gelir" = "Income";
+// "gider" = "Expense";
