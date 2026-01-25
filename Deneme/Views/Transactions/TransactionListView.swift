@@ -58,9 +58,13 @@ struct TransactionListView: View {
                                 // Permission Check Logic for Swipe Actions
                                 let canEdit = (walletManager.selectedWallet?.canEdit(userId: AuthenticationManager.shared.user?.uid ?? "") ?? false)
                                 
-                                NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
-                                    TransactionRow(transaction: transaction)
-                                }
+                                TransactionRow(transaction: transaction)
+                                    .background(
+                                        NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
+                                            EmptyView()
+                                        }
+                                        .opacity(0)
+                                    )
                                 .swipeActions(edge: .trailing, allowsFullSwipe: canEdit) {
                                     if canEdit {
                                         Button(role: .destructive) {

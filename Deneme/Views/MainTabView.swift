@@ -34,6 +34,16 @@ struct MainTabView: View {
                     .tabItem {
                         Label("Analiz", systemImage: "chart.bar.xaxis")
                     }
+                
+                CategoriesView()
+                    .tabItem {
+                        Label("Kategoriler", systemImage: "square.grid.2x2.fill")
+                    }
+                
+                TestView()
+                    .tabItem {
+                        Label("Test", systemImage: "hammer.fill")
+                    }
             }
             
 

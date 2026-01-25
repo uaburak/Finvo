@@ -51,9 +51,10 @@ class AnalyticsViewModel: ObservableObject {
         
         self.chartData = groupedByCategory.map { (key, value) in
             let total = value.reduce(0) { $0 + $1.amount }
-            // Find color
-            let colorHex = CategoriesData.expenseCategories.first(where: { $0.name == key })?.colorHex ?? "#8E8E93"
-            return CategoryDouble(category: key, value: total, color: Color(hex: colorHex))
+            // Find color safely
+            let category = CategoryManager.shared.categories.first(where: { $0.name == key })
+            let colorHex = category?.colorHex ?? "#8E8E93"
+            return CategoryDouble(category: key, value: total, color: Color(hex: colorHex) ?? .gray)
         }.sorted(by: { $0.value > $1.value })
         
         // 2. Bar Chart Data (Monthly Income vs Expense - Last 6 months)

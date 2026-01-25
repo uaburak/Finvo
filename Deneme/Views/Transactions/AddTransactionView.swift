@@ -148,9 +148,11 @@ struct CategorySelectionStep: View {
     let type: TransactionType
     @Binding var selectedCategory: Category?
     var onNext: () -> Void
+    @StateObject private var categoryManager = CategoryManager.shared
     
     var categories: [Category] {
-        return type == .income ? CategoriesData.incomeCategories : CategoriesData.expenseCategories
+        let categoryType: CategoryType = (type == .income) ? .income : .expense
+        return categoryManager.getCategories(type: categoryType).filter { $0.isVisible }
     }
     
     // Grid Columns
@@ -171,12 +173,12 @@ struct CategorySelectionStep: View {
                         VStack {
                             ZStack {
                                 Circle()
-                                    .fill(Color(hex: category.colorHex).opacity(0.2))
+                                    .fill(Color(hex: category.colorHex)?.opacity(0.2) ?? Color.gray.opacity(0.2))
                                     .frame(width: 60, height: 60)
                                 
-                                Image(systemName: category.iconName)
+                                Image(systemName: category.icon)
                                     .font(.title2)
-                                    .foregroundColor(Color(hex: category.colorHex))
+                                    .foregroundColor(Color(hex: category.colorHex) ?? .gray)
                             }
                             
                             Text(category.name)
@@ -200,13 +202,17 @@ struct SubCategorySelectionStep: View {
     var body: some View {
         List {
             if let category = category {
-                ForEach(category.subCategories, id: \.self) { sub in
+                ForEach(category.subCategories.filter { $0.isVisible }) { sub in
                     Button {
-                        selectedSubCategory = sub
+                        selectedSubCategory = sub.name
                         onNext()
                     } label: {
-                        Text(sub)
-                            .foregroundColor(.primary)
+                        HStack {
+                            Image(systemName: sub.icon)
+                                .foregroundColor(Color(hex: sub.colorHex) ?? .primary)
+                            Text(sub.name)
+                                .foregroundColor(.primary)
+                        }
                     }
                 }
             } else {
@@ -228,8 +234,8 @@ struct TransactionDetailsStep: View {
                 // Display Selected Info
                 HStack {
                     if let category = viewModel.selectedCategory {
-                        Image(systemName: category.iconName)
-                            .foregroundColor(Color(hex: category.colorHex))
+                        Image(systemName: category.icon)
+                            .foregroundColor(Color(hex: category.colorHex) ?? .primary)
                         Text(category.name)
                         Text(">")
                             .foregroundColor(.gray)
@@ -293,34 +299,6 @@ struct TransactionDetailsStep: View {
             }
             .padding(.top, 20)
         }
-    }
-}
-
-// Helper for Color Hex
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
     }
 }
 

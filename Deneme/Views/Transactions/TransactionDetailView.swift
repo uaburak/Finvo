@@ -8,6 +8,18 @@ struct TransactionDetailView: View {
     
     @State private var showEditSheet = false
     
+    // Helper to find category info
+    private var categoryInfo: (icon: String, color: String) {
+        if let category = CategoryManager.shared.categories.first(where: { $0.name == transaction.categoryName }) {
+            if let subStr = transaction.subCategoryName.isEmpty ? nil : transaction.subCategoryName,
+               let sub = category.subCategories.first(where: { $0.name == subStr }) {
+                return (sub.icon, sub.colorHex)
+            }
+            return (category.icon, category.colorHex)
+        }
+        return ("list.bullet", "#007AFF") // Fallback
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -18,12 +30,9 @@ struct TransactionDetailView: View {
                             .fill(Color(.systemGray6))
                             .frame(width: 80, height: 80)
                         
-                        // We rely on SF Symbol name being valid. 
-                        // If Category model has icon name, usually we store categoryName.
-                        // Ideally we fetch category color/icon, but for now we fallback.
-                        Image(systemName: "list.bullet") 
+                        Image(systemName: categoryInfo.icon) 
                             .font(.largeTitle)
-                            .foregroundColor(.blue)
+                            .foregroundColor(Color(hex: categoryInfo.color))
                     }
                     
                     VStack(spacing: 4) {
