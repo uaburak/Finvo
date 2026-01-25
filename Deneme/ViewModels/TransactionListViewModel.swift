@@ -13,6 +13,12 @@ class TransactionListViewModel: ObservableObject {
     private var listener: ListenerRegistration?
     private let firestoreService = FirestoreService.shared
     
+    @Published var searchText: String = "" {
+        didSet {
+            applyFilter()
+        }
+    }
+    
     // Load & Listen (Real-time)
     func loadInitialData(for wallet: Wallet) {
         guard let walletId = wallet.id else { return }
@@ -38,10 +44,37 @@ class TransactionListViewModel: ObservableObject {
     }
     
     private func applyFilter() {
+        var filtered = allTransactions
+        
+        // 1. Type Filter
         if let type = filterType {
-            self.transactions = allTransactions.filter { $0.type == type }
-        } else {
-            self.transactions = allTransactions
+            filtered = filtered.filter { $0.type == type }
+        }
+        
+        // 2. Search Text Filter
+        if !searchText.isEmpty {
+            let lowercasedSearch = searchText.lowercased()
+            filtered = filtered.filter { transaction in
+                let categoryMatch = transaction.categoryName.lowercased().contains(lowercasedSearch)
+                let subCategoryMatch = transaction.subCategoryName.lowercased().contains(lowercasedSearch)
+                let noteMatch = (transaction.note ?? "").lowercased().contains(lowercasedSearch)
+                let amountMatch = String(transaction.amount).contains(lowercasedSearch)
+                let userMatch = (transaction.createdByUsername ?? "").lowercased().contains(lowercasedSearch)
+                
+                return categoryMatch || subCategoryMatch || noteMatch || amountMatch || userMatch
+            }
+        }
+        
+        self.transactions = filtered
+    }
+    
+    func deleteTransaction(_ transaction: Transaction, walletId: String) async {
+        guard let id = transaction.id else { return }
+        do {
+            try await firestoreService.deleteTransaction(walletId: walletId, transactionId: id)
+            // Listener will automatically update 'allTransactions'
+        } catch {
+            self.errorMessage = "Silme hatası: \(error.localizedDescription)"
         }
     }
     

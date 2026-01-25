@@ -6,6 +6,7 @@ struct TransactionListView: View {
     @State private var showCreateWallet = false
     @State private var showFilterSheet = false
     @State private var filter = TransactionFilter() // Default filter
+    @State private var selectedTransactionForEdit: Transaction?
     
     var body: some View {
         NavigationStack {
@@ -53,9 +54,25 @@ struct TransactionListView: View {
                     } else {
                         List {
                             ForEach(viewModel.transactions) { transaction in
-                                TransactionRow(transaction: transaction)
-                                    // Pagination removed for real-time stability
-
+                                NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
+                                    TransactionRow(transaction: transaction)
+                                }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        if let walletId = walletManager.selectedWallet?.id {
+                                            Task { await viewModel.deleteTransaction(transaction, walletId: walletId) }
+                                        }
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    
+                                    Button {
+                                        selectedTransactionForEdit = transaction
+                                    } label: {
+                                        Image(systemName: "pencil")
+                                    }
+                                    .tint(.orange)
+                                }
                             }
                             
                             if viewModel.isLoading {
@@ -67,7 +84,8 @@ struct TransactionListView: View {
                         }
                     }
                 }
-            .navigationTitle("İşlemler")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Principal: Segmented Control (Filter Type)
                 ToolbarItem(placement: .principal) {
@@ -94,8 +112,14 @@ struct TransactionListView: View {
                 }
             }
             .sheet(isPresented: $showFilterSheet) {
-                TransactionFilterView(filter: $filter) // We need state for this
+                TransactionFilterView(filter: $filter)
             }
+            .sheet(item: $selectedTransactionForEdit) { transaction in
+                if let walletId = walletManager.selectedWallet?.id {
+                    EditTransactionView(transaction: transaction, walletId: walletId)
+                }
+            }
+            .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Ara")
             .onAppear {
                 if let wallet = walletManager.selectedWallet {
                     viewModel.loadInitialData(for: wallet)

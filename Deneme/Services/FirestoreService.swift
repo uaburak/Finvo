@@ -99,6 +99,19 @@ class FirestoreService: ObservableObject {
         }
     }
     
+    func deleteTransaction(walletId: String, transactionId: String) async throws {
+        let walletRef = db.collection("wallets").document(walletId)
+        let transactionRef = walletRef.collection("transactions").document(transactionId)
+        try await transactionRef.delete()
+    }
+    
+    func updateTransaction(walletId: String, transaction: Transaction) async throws {
+        guard let transactionId = transaction.id else { return }
+        let walletRef = db.collection("wallets").document(walletId)
+        let transactionRef = walletRef.collection("transactions").document(transactionId)
+        try transactionRef.setData(from: transaction, merge: true)
+    }
+    
     // Legacy fetch (kept for reference or specific use cases)
     func fetchTransactions(walletId: String, limit: Int = 20, lastDoc: DocumentSnapshot? = nil, type: TransactionType? = nil) async throws -> (transactions: [Transaction], lastDoc: DocumentSnapshot?) {
         let walletRef = db.collection("wallets").document(walletId)
