@@ -1,43 +1,53 @@
 import Foundation
 import Combine
 import FirebaseAuth
+// Ensure AuthenticationManager is accessible, it's not a framework but a project file, so no import needed for it usually.
+// But check imports.
+import Combine
+import FirebaseAuth
 
 @MainActor
 class NotificationsViewModel: ObservableObject {
     @Published var invites: [Invite] = []
-    @Published var isLoading: Bool = false
+    @Published var permissionRequests: [PermissionRequest] = []
     
     private let firestoreService = FirestoreService.shared
     
+    func refresh() async {
+        await fetchInvites()
+        await fetchRequests()
+    }
+    
     func fetchInvites() async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        isLoading = true
+        guard let uid = AuthenticationManager.shared.user?.uid else { return }
         do {
-            let pending = try await firestoreService.fetchPendingInvites(forUser: uid)
-            self.invites = pending
+            self.invites = try await firestoreService.fetchPendingInvites(forUser: uid)
         } catch {
             print("Error fetching invites: \(error)")
         }
-        isLoading = false
+    }
+    
+    func fetchRequests() async {
+        guard let uid = AuthenticationManager.shared.user?.uid else { return }
+        do {
+            self.permissionRequests = try await firestoreService.fetchPermissionRequests(forOwner: uid)
+        } catch {
+            print("Error fetching requests: \(error)")
+        }
     }
     
     func accept(_ invite: Invite) async {
-        await respond(invite, accept: true)
+        try? await firestoreService.respondToInvite(invite, accept: true)
+        await fetchInvites()
     }
     
     func reject(_ invite: Invite) async {
-        await respond(invite, accept: false)
+        try? await firestoreService.respondToInvite(invite, accept: false)
+        await fetchInvites()
     }
     
-    private func respond(_ invite: Invite, accept: Bool) async {
-        do {
-            try await firestoreService.respondToInvite(invite, accept: accept)
-            // Remove locally
-            if let index = invites.firstIndex(where: { $0.id == invite.id }) {
-                invites.remove(at: index)
-            }
-        } catch {
-            print("Error responding to invite: \(error)")
-        }
+    func respondToPermission(_ request: PermissionRequest, accept: Bool) async {
+        try? await firestoreService.respondToPermissionRequest(request, accept: accept)
+        await fetchRequests()
     }
 }

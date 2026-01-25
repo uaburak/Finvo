@@ -8,6 +8,10 @@ service cloud.firestore {
     match /invites/{inviteId} {
       allow read, write: if true;
     }
+
+    match /permission_requests/{requestId} {
+      allow read, write: if true;
+    }
     
     // Kullanıcılar
     match /users/{userId} {

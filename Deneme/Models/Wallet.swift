@@ -31,4 +31,14 @@ struct Wallet: Identifiable, Codable, Equatable {
         case members
         case permissions
     }
+    
+    func isOwner(userId: String) -> Bool {
+        return ownerId == userId
+    }
+    
+    func canEdit(userId: String) -> Bool {
+        if isOwner(userId: userId) { return true }
+        let role = permissions[userId] ?? "editor" // Default to editor if not specified (backward compatibility)
+        return role == "editor"
+    }
 }

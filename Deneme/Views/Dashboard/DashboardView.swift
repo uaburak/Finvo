@@ -8,6 +8,9 @@ struct DashboardView: View {
     
     @State private var showCreateWallet = false
     @State private var showAddTransaction = false
+    @State private var showManageWallets = false
+    @State private var showPermissionAlert = false
+    @State private var showRequestSentAlert = false
     
     var body: some View {
         NavigationStack {
@@ -78,6 +81,12 @@ struct DashboardView: View {
                             Label("Yeni Cüzdan Oluştur", systemImage: "plus.circle")
                         }
                         
+                        Button {
+                            showManageWallets = true
+                        } label: {
+                            Label("Cüzdanları Yönet", systemImage: "list.bullet.rectangle.portrait")
+                        }
+                        
                     } label: {
                         HStack(spacing: 4) {
                             Text(walletManager.selectedWallet?.name ?? "Cüzdan Seç")
@@ -120,7 +129,13 @@ struct DashboardView: View {
                 // Show FAB only if wallet exists
                 if walletManager.selectedWallet != nil {
                     Button {
-                        showAddTransaction = true
+                        if let wallet = walletManager.selectedWallet, let uid = authManager.user?.uid {
+                            if wallet.canEdit(userId: uid) {
+                                showAddTransaction = true
+                            } else {
+                                showPermissionAlert = true
+                            }
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.title.weight(.semibold))
@@ -140,8 +155,26 @@ struct DashboardView: View {
                     Text("Lütfen önce bir cüzdan oluşturun.")
                  }
             }
+            .alert("Yetkiniz Yok", isPresented: $showPermissionAlert) {
+                Button("Yetki İste") {
+                     Task { await requestPermission() }
+                }
+                Button("İptal", role: .cancel) { }
+            } message: {
+                Text("Bu cüzdanda işlem yapabilmek için 'Düzenleyici' yetkisine ihtiyacınız var. Cüzdan sahibinden yetki isteyebilirsiniz.")
+            }
+            .alert("İstek Gönderildi", isPresented: $showRequestSentAlert) {
+                Button("Tamam", role: .cancel) { }
+            } message: {
+                Text("Yetki isteğiniz cüzdan sahibine iletildi.")
+            }
             .sheet(isPresented: $showCreateWallet) {
                 CreateWalletView()
+            }
+            .sheet(isPresented: $showManageWallets) {
+                NavigationStack {
+                    WalletManagementListView()
+                }
             }
             .onAppear {
                 if let uid = authManager.user?.uid {
@@ -157,6 +190,21 @@ struct DashboardView: View {
                     Task { await viewModel.refreshDashboard(for: wallet) }
                 }
             }
+        }
+    }
+    func requestPermission() async {
+        guard let wallet = walletManager.selectedWallet, 
+              let user = AuthenticationManager.shared.currentUserProfile ?? 
+                         (authManager.user == nil ? nil : User(uid: authManager.user!.uid, email: "", username: authManager.user?.displayName ?? "User", isPro: false))
+        else { return }
+        
+        do {
+            try await FirestoreService.shared.sendPermissionRequest(wallet: wallet, fromUser: user)
+            print("DEBUG: Request sent successfully")
+            showPermissionAlert = false
+            showRequestSentAlert = true
+        } catch {
+            print("Yetki isteği gönderilemedi: \(error)")
         }
     }
 }

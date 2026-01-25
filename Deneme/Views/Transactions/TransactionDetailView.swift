@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 struct TransactionDetailView: View {
     @Environment(\.dismiss) var dismiss
@@ -65,18 +66,24 @@ struct TransactionDetailView: View {
                 Spacer()
                 
                 // Edit Button (Orange as requested)
-                Button {
-                    showEditSheet = true
-                } label: {
-                    Label("Düzenle", systemImage: "pencil")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.orange)
-                        .cornerRadius(12)
+                // Edit Button (Orange as requested)
+                // Only show if user has permission
+                if let wallet = walletManager.selectedWallet, 
+                   wallet.canEdit(userId: AuthenticationManager.shared.user?.uid ?? "") {
+                    
+                    Button {
+                        showEditSheet = true
+                    } label: {
+                        Label("Düzenle", systemImage: "pencil")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.orange)
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
             }
         }
         .navigationTitle("İşlem Detayı")

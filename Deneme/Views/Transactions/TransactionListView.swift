@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 struct TransactionListView: View {
     @StateObject private var viewModel = TransactionListViewModel()
@@ -54,24 +55,29 @@ struct TransactionListView: View {
                     } else {
                         List {
                             ForEach(viewModel.transactions) { transaction in
+                                // Permission Check Logic for Swipe Actions
+                                let canEdit = (walletManager.selectedWallet?.canEdit(userId: AuthenticationManager.shared.user?.uid ?? "") ?? false)
+                                
                                 NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
                                     TransactionRow(transaction: transaction)
                                 }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        if let walletId = walletManager.selectedWallet?.id {
-                                            Task { await viewModel.deleteTransaction(transaction, walletId: walletId) }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: canEdit) {
+                                    if canEdit {
+                                        Button(role: .destructive) {
+                                            if let walletId = walletManager.selectedWallet?.id {
+                                                Task { await viewModel.deleteTransaction(transaction, walletId: walletId) }
+                                            }
+                                        } label: {
+                                            Image(systemName: "trash")
                                         }
-                                    } label: {
-                                        Image(systemName: "trash")
+                                        
+                                        Button {
+                                            selectedTransactionForEdit = transaction
+                                        } label: {
+                                            Image(systemName: "pencil")
+                                        }
+                                        .tint(.orange)
                                     }
-                                    
-                                    Button {
-                                        selectedTransactionForEdit = transaction
-                                    } label: {
-                                        Image(systemName: "pencil")
-                                    }
-                                    .tint(.orange)
                                 }
                             }
                             

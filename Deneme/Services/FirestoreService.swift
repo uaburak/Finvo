@@ -68,6 +68,18 @@ class FirestoreService: ObservableObject {
         wallets = []
     }
     
+    func deleteWallet(walletId: String) async throws {
+        // 1. Delete transactions (In a real app, use Cloud Functions or batch delete)
+        // For MVP, we might leave them orphaned or try to delete a batch.
+        // Let's just delete the wallet document for now.
+        try await db.collection("wallets").document(walletId).delete()
+    }
+    
+    func leaveWallet(walletId: String, userId: String) async throws {
+        // Remove user from members array and permissions map
+        try await removeMember(walletId: walletId, userId: userId)
+    }
+    
     // MARK: - Transaction Operations
     
     func addTransaction(walletId: String, transaction: Transaction) async throws {
@@ -268,6 +280,49 @@ class FirestoreService: ObservableObject {
         } else {
             // Update status to rejected
             try await inviteRef.updateData(["status": InviteStatus.rejected.rawValue])
+        }
+    }
+    
+    // MARK: - Permission Requests
+    
+    func sendPermissionRequest(wallet: Wallet, fromUser: User) async throws {
+        guard let walletId = wallet.id else { return }
+        
+        // Create request
+        let request = PermissionRequest(
+            fromUserId: fromUser.uid,
+            fromUsername: fromUser.username,
+            toOwnerId: wallet.ownerId,
+            walletId: walletId,
+            walletName: wallet.name,
+            status: .pending,
+            createdAt: Date()
+        )
+        
+        try db.collection("permission_requests").addDocument(from: request)
+    }
+    
+    func fetchPermissionRequests(forOwner ownerId: String) async throws -> [PermissionRequest] {
+        print("DEBUG: Fetching requests for owner: \(ownerId)")
+        let snapshot = try await db.collection("permission_requests")
+            .whereField("toOwnerId", isEqualTo: ownerId)
+            .whereField("status", isEqualTo: "pending")
+            .getDocuments()
+            
+        print("DEBUG: Found \(snapshot.documents.count) requests")
+        return snapshot.documents.compactMap { try? $0.data(as: PermissionRequest.self) }
+    }
+    
+    func respondToPermissionRequest(_ request: PermissionRequest, accept: Bool) async throws {
+        guard let requestId = request.id else { return }
+        let requestRef = db.collection("permission_requests").document(requestId)
+        
+        if accept {
+            try await requestRef.updateData(["status": PermissionRequestStatus.accepted.rawValue])
+            // Update role to editor
+            try await updateMemberRole(walletId: request.walletId, userId: request.fromUserId, newRole: "editor")
+        } else {
+            try await requestRef.updateData(["status": PermissionRequestStatus.rejected.rawValue])
         }
     }
     // MARK: - Data Repair (Temporary)
