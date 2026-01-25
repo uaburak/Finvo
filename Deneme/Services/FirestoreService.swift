@@ -77,16 +77,42 @@ class FirestoreService: ObservableObject {
         try transactionsRef.addDocument(from: transaction)
     }
     
-    // Fetch transactions with pagination support
-    func fetchTransactions(walletId: String, limit: Int = 20, lastDoc: DocumentSnapshot? = nil, type: TransactionType? = nil) async throws -> (transactions: [Transaction], lastDoc: DocumentSnapshot?) {
+    // Real-time Transaction Listener
+    func listenToTransactions(walletId: String, limit: Int = 50, completion: @escaping ([Transaction]) -> Void) -> ListenerRegistration {
         let walletRef = db.collection("wallets").document(walletId)
-        var query = walletRef.collection("transactions")
+        
+        // Listen to the last 50 transactions regardless of type
+        // This allows client-side filtering without missing data
+        let query = walletRef.collection("transactions")
             .order(by: "date", descending: true)
             .limit(to: limit)
+            
+        return query.addSnapshotListener { snapshot, error in
+            guard let documents = snapshot?.documents else {
+                print("Error listening to transactions: \(error?.localizedDescription ?? "Unknown error")")
+                completion([])
+                return
+            }
+            
+            let transactions = documents.compactMap { try? $0.data(as: Transaction.self) }
+            completion(transactions)
+        }
+    }
+    
+    // Legacy fetch (kept for reference or specific use cases)
+    func fetchTransactions(walletId: String, limit: Int = 20, lastDoc: DocumentSnapshot? = nil, type: TransactionType? = nil) async throws -> (transactions: [Transaction], lastDoc: DocumentSnapshot?) {
+        let walletRef = db.collection("wallets").document(walletId)
+        var query: Query = walletRef.collection("transactions")
         
+        // 1. Filter first (optimization suggestion)
         if let type = type {
             query = query.whereField("type", isEqualTo: type.rawValue)
         }
+        
+        // 2. Then Sort & Limit
+        query = query.order(by: "date", descending: true)
+            .limit(to: limit)
+
         
         if let lastDoc = lastDoc {
             query = query.start(afterDocument: lastDoc)
@@ -230,5 +256,54 @@ class FirestoreService: ObservableObject {
             // Update status to rejected
             try await inviteRef.updateData(["status": InviteStatus.rejected.rawValue])
         }
+    }
+    // MARK: - Data Repair (Temporary)
+    func repairTransactions() async throws -> String {
+        var log = "Onarım Başlatıldı...\n"
+        var updatedCount = 0
+        
+        // 1. Get all wallets
+        let walletsSnap = try await db.collection("wallets").getDocuments()
+        log += "Bulunan Cüzdan Sayısı: \(walletsSnap.documents.count)\n"
+        
+        for walletDoc in walletsSnap.documents {
+            let walletId = walletDoc.documentID
+            let walletRef = db.collection("wallets").document(walletId)
+            let transactionsSnap = try await walletRef.collection("transactions").getDocuments()
+            
+            for doc in transactionsSnap.documents {
+                var updates: [String: Any] = [:]
+                let data = doc.data()
+                
+                // Fix Type (Lowercase)
+                if let typeString = data["type"] as? String {
+                    let lowered = typeString.lowercased()
+                    if typeString != lowered {
+                        updates["type"] = lowered
+                        log += "Düzeltildi (Type): \(doc.documentID) -> \(lowered)\n"
+                    }
+                }
+                
+                // Backfill Username
+                if data["createdByUsername"] == nil {
+                    if let uid = data["createdBy"] as? String {
+                        // Fetch user info (One by one is slow but acceptable for repair tool)
+                        let userDoc = try await db.collection("users").document(uid).getDocument()
+                        if let userData = userDoc.data(), let username = userData["username"] as? String {
+                            updates["createdByUsername"] = username
+                            log += "Eklendi (Username): \(doc.documentID) -> \(username)\n"
+                        }
+                    }
+                }
+                
+                if !updates.isEmpty {
+                    try await doc.reference.updateData(updates)
+                    updatedCount += 1
+                }
+            }
+        }
+        
+        log += "Tamamlandı. Toplam Güncellenen İşlem: \(updatedCount)"
+        return log
     }
 }

@@ -50,6 +50,12 @@ class AddTransactionViewModel: ObservableObject {
         
         self.isLoading = true
         
+        // Use cached username from AuthenticationManager
+        // Fallback to displayName or default if profile not loaded yet
+        let username = AuthenticationManager.shared.currentUserProfile?.username 
+            ?? currentUser.displayName 
+            ?? "Kullanıcı"
+        
         let newTransaction = Transaction(
             amount: amountValue,
             currency: "TRY", // Default for now
@@ -59,7 +65,8 @@ class AddTransactionViewModel: ObservableObject {
             subCategoryName: subCategory,
             createdBy: currentUser.uid,
             note: note.isEmpty ? nil : note,
-            isRecurring: isRecurring
+            isRecurring: isRecurring,
+            createdByUsername: username
         )
         
         do {

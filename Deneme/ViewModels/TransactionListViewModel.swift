@@ -9,54 +9,54 @@ class TransactionListViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
-    var walletId: String?
-    private var lastDocument: DocumentSnapshot?
+    private var allTransactions: [Transaction] = [] // Raw data
+    private var listener: ListenerRegistration?
     private let firestoreService = FirestoreService.shared
-    private var hasMoreData: Bool = true
     
-    func loadInitialData(walletId: String) async {
-        self.walletId = walletId
-        self.transactions = []
-        self.lastDocument = nil
-        self.hasMoreData = true
-        await fetchNextPage()
-    }
-    
-    func fetchNextPage() async {
-        guard let walletId = walletId, !isLoading, hasMoreData else { return }
+    // Load & Listen (Real-time)
+    func loadInitialData(for wallet: Wallet) {
+        guard let walletId = wallet.id else { return }
         
         isLoading = true
-        do {
-            // Note: firestoreService.fetchTransactions needs to support filtering or we filter clientside?
-            // PRD: "Firestore kurallarını okuma maliyetlerini minimize edecek şekilde tasarla"
-            // Filtering server-side is better. We need to update FirestoreService or just filter locally if dataset is small.
-            // For now, let's update FirestoreService to support type filter or just fetch all and filter client side (less efficient).
-            // Let's update FirestoreService signature to accept type filter.
-            let result = try await firestoreService.fetchTransactions(walletId: walletId, limit: 20, lastDoc: lastDocument, type: filterType)
-            
-            if result.transactions.isEmpty {
-                hasMoreData = false
-            } else {
-                self.transactions.append(contentsOf: result.transactions)
-                self.lastDocument = result.lastDoc
-            }
-            isLoading = false
-        } catch {
-            isLoading = false
-            errorMessage = error.localizedDescription
+        
+        // Remove existing listener if changing wallets
+        listener?.remove()
+        
+        listener = firestoreService.listenToTransactions(walletId: walletId, limit: 100) { [weak self] newTransactions in
+            guard let self = self else { return }
+            self.allTransactions = newTransactions
+            self.applyFilter()
+            self.isLoading = false
         }
     }
     
-    func refresh() async {
-        guard let walletId = walletId else { return }
-        self.transactions = []
-        self.lastDocument = nil
-        self.hasMoreData = true
-        await fetchNextPage()
+    // Pure Local Filter
+    func updateFilter(_ type: TransactionType?) {
+        HapticsManager.shared.impact(style: .light)
+        self.filterType = type
+        applyFilter()
     }
     
-    func updateFilter(_ type: TransactionType?) {
-        self.filterType = type
-        Task { await refresh() }
+    private func applyFilter() {
+        if let type = filterType {
+            self.transactions = allTransactions.filter { $0.type == type }
+        } else {
+            self.transactions = allTransactions
+        }
+    }
+    
+    // Refresh isn't strictly needed with a listener, but can remain if we want to force re-attach
+    func refresh(for wallet: Wallet) async {
+       loadInitialData(for: wallet)
+    }
+    
+    // Pagination is tricky with simple listeners. 
+    // For now, we fetch a larger chunk (100) to cover most use cases.
+    func fetchNextPage() async {
+        // Feature temporarily disabled in favor of real-time stability
+    }
+    
+    deinit {
+        listener?.remove()
     }
 }

@@ -27,7 +27,8 @@ class AnalyticsViewModel: ObservableObject {
     
     private let firestoreService = FirestoreService.shared
     
-    func fetchData(walletId: String) async {
+    func fetchData(for wallet: Wallet) async {
+        guard let walletId = wallet.id else { return }
         isLoading = true
         errorMessage = nil
         

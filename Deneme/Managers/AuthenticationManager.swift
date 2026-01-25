@@ -10,6 +10,7 @@ class AuthenticationManager: ObservableObject {
     @Published var user: FirebaseAuth.User?
     @Published var isAuthenticated: Bool = false
     @Published var isProfileComplete: Bool = false
+    @Published var currentUserProfile: User?
     
     private let db = Firestore.firestore()
     
@@ -26,22 +27,29 @@ class AuthenticationManager: ObservableObject {
             self.isAuthenticated = user != nil
             if user != nil {
                 Task {
-                    await self.checkUserProfile()
+                    await self.fetchUserProfile()
                 }
             } else {
                 self.isProfileComplete = false
+                self.currentUserProfile = nil
             }
         }
     }
     
-    // Kullanıcının Firestore'da profil kaydı olup olmadığını kontrol eder
-    func checkUserProfile() async {
+    // Kullanıcının Firestore'da profil kaydı olup olmadığını kontrol eder ve çeker
+    func fetchUserProfile() async {
         guard let uid = user?.uid else { return }
         do {
             let doc = try await db.collection("users").document(uid).getDocument()
-            self.isProfileComplete = doc.exists
+            if doc.exists {
+                self.currentUserProfile = try? doc.data(as: User.self)
+                self.isProfileComplete = true
+            } else {
+                self.isProfileComplete = false
+                self.currentUserProfile = nil
+            }
         } catch {
-            print("Kullanıcı profili kontrol edilirken hata oluştu: \(error)")
+            print("Kullanıcı profili çekilirken hata oluştu: \(error)")
         }
     }
     

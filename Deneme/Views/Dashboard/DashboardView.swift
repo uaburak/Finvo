@@ -28,102 +28,33 @@ struct DashboardView: View {
                     }
                     .padding()
                 } else {
-                    VStack(spacing: 24) {
-                        // Header Card
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text("Toplam Varlık")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.8))
-                                    Text("₺\(viewModel.totalBalance, specifier: "%.2f")")
-                                        .font(.system(size: 32, weight: .bold))
-                                        .foregroundColor(.white)
-                                }
-                                Spacer()
-                                // Wallet Selector Placeholder
-                                if let wallet = walletManager.selectedWallet {
-                                    Text(wallet.name)
-                                        .font(.caption)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(Color.white.opacity(0.2))
-                                        .cornerRadius(10)
-                                        .foregroundColor(.white)
-                                    
-                                    // Settings Button
-                                    NavigationLink(destination: WalletSettingsView(viewModel: WalletSettingsViewModel(wallet: wallet))) {
-                                        Image(systemName: "gearshape.fill")
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                            }
-                            
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    HStack {
-                                        Image(systemName: "arrow.up.circle.fill")
-                                            .foregroundColor(.green)
-                                        Text("Gelir")
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
-                                    Text("₺\(viewModel.monthlyIncome, specifier: "%.2f")")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                }
-                                
-                                Spacer()
-                                
-                                VStack(alignment: .trailing) {
-                                    HStack {
-                                        Text("Gider")
-                                            .foregroundColor(.white.opacity(0.8))
-                                        Image(systemName: "arrow.down.circle.fill")
-                                            .foregroundColor(.red)
-                                    }
-                                    Text("₺\(viewModel.monthlyExpense, specifier: "%.2f")")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(20)
-                        .shadow(radius: 5)
-                        .padding(.horizontal)
-                        
-                        // Recent Transactions
-                        VStack(alignment: .leading) {
-                            HStack {
-                                Text("Son İşlemler")
-                                    .font(.headline)
-                                Spacer()
-                                // Navigation to full list would go here or via TabView
-                            }
-                            .padding(.horizontal)
-                            
-                            if viewModel.isLoading {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity)
-                            } else if viewModel.recentTransactions.isEmpty {
-                                Text("Henüz işlem yok")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                            } else {
-                                ForEach(viewModel.recentTransactions) { transaction in
-                                    TransactionRow(transaction: transaction)
-                                }
-                                .padding(.horizontal)
-                            }
+                    // Context-Aware Content
+                    if let wallet = walletManager.selectedWallet {
+                        switch wallet.context {
+                        case .budget:
+                            BudgetDashboardView(viewModel: viewModel)
+                        case .todo:
+                            // Should theoretically be handled by MainTabView but for consistency if loaded here:
+                             Text("To-Do Modu: Tab değişimini kontrol et.")
+                        case .savings:
+                            SavingsDashboardView(viewModel: viewModel)
+                        case .travel:
+                            TravelDashboardView(viewModel: viewModel)
                         }
                     }
-                    .padding(.top)
                 }
             }
             .toolbar {
+                // Leading: Notifications
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink(destination: NotificationsView()) {
+                        Image(systemName: "bell.badge")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.red, .primary)
+                    }
+                }
+                
+                // Principal: Wallet Selector
                 ToolbarItem(placement: .principal) {
                     Menu {
                         ForEach(walletManager.wallets) { wallet in
@@ -148,13 +79,36 @@ struct DashboardView: View {
                         }
                         
                     } label: {
-                        HStack {
+                        HStack(spacing: 4) {
                             Text(walletManager.selectedWallet?.name ?? "Cüzdan Seç")
                                 .font(.headline)
                                 .foregroundColor(.primary)
-                            Image(systemName: "chevron.down.circle.fill")
+                            Image(systemName: "chevron.down")
                                 .font(.caption)
-                                .foregroundColor(.blue)
+                                .bold()
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                // Trailing: Profile (Settings)
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(destination: SettingsView()) {
+                        if let photoURL = authManager.user?.photoURL {
+                            AsyncImage(url: photoURL) { image in
+                                image.resizable()
+                            } placeholder: {
+                                Image(systemName: "person.crop.circle")
+                                    .resizable()
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(width: 32, height: 32)
+                            .clipShape(Circle())
+                        } else {
+                            Image(systemName: "person.crop.circle")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.gray)
                         }
                     }
                 }
@@ -198,7 +152,7 @@ struct DashboardView: View {
                     Task { await viewModel.refreshDashboard(for: wallet) }
                 }
             }
-            .onChange(of: walletManager.selectedWallet) { newWallet in
+            .onChange(of: walletManager.selectedWallet) { _, newWallet in
                 if let wallet = newWallet {
                     Task { await viewModel.refreshDashboard(for: wallet) }
                 }

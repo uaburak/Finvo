@@ -28,6 +28,8 @@ struct CreateWalletView: View {
                     Picker("Kategori", selection: $context) {
                         Text("Bütçe").tag(WalletContext.budget)
                         Text("Yapılacaklar").tag(WalletContext.todo)
+                        Text("Birikim").tag(WalletContext.savings)
+                        Text("Seyahat").tag(WalletContext.travel)
                     }
                     .pickerStyle(.segmented)
                 }

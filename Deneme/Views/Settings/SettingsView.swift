@@ -3,8 +3,11 @@ import FirebaseAuth
 
 struct SettingsView: View {
     @EnvironmentObject var authManager: AuthenticationManager
-    @AppStorage("isDarkMode") private var isDarkMode: Bool = false
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
+    
+    @State private var showRepairAlert = false
+    @State private var showRepairResult = false
+    @State private var repairResult = ""
     
     var body: some View {
         NavigationStack {
@@ -46,8 +49,6 @@ struct SettingsView: View {
                 
                 // Section: App Preferences
                 Section(header: Text("Uygulama Tercihleri")) {
-                    Toggle("Karanlık Mod", isOn: $isDarkMode)
-                    
                     Picker("Dil", selection: $appLanguage) {
                         Text("Türkçe").tag("tr")
                         Text("English").tag("en")
@@ -59,7 +60,7 @@ struct SettingsView: View {
                 // Section: Data & Privacy
                 Section(header: Text("Veri Yönetimi")) {
                     Button(action: {
-                        // Export Action (Trigger via Analytics ViewModel or here)
+                        // Export Action
                     }) {
                         Label("Verileri Dışa Aktar (JSON)", systemImage: "square.and.arrow.up")
                     }
@@ -93,9 +94,31 @@ struct SettingsView: View {
                     }
                 }
             }
+
             .navigationTitle("Ayarlar")
+            .alert("Veri Onarımı", isPresented: $showRepairAlert) {
+                Button("Başlat") {
+                    Task {
+                        do {
+                            let result = try await FirestoreService.shared.repairTransactions()
+                            repairResult = result
+                            showRepairResult = true
+                        } catch {
+                            repairResult = "Hata: \(error.localizedDescription)"
+                            showRepairResult = true
+                        }
+                    }
+                }
+                Button("İptal", role: .cancel) { }
+            } message: {
+                Text("Bu işlem veritabanındaki eski kayıtları yeni formata uygun hale getirecek. Devam etmek istiyor musunuz?")
+            }
+            .alert("Sonuç", isPresented: $showRepairResult) {
+                Button("Tamam", role: .cancel) { }
+            } message: {
+                Text(repairResult)
+            }
         }
-        .preferredColorScheme(isDarkMode ? .dark : .light)
     }
 }
 

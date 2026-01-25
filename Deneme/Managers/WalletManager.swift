@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import FirebaseAuth
+import UIKit
 
 @MainActor
 class WalletManager: ObservableObject {
@@ -30,14 +31,27 @@ class WalletManager: ObservableObject {
                         self.selectedWallet = wallets.first
                     }
                 } else {
-                    // No selection, select first
-                    self.selectedWallet = wallets.first
+                    // Check persistence first
+                    if let lastId = UserDefaults.standard.string(forKey: "lastSelectedWalletId"),
+                       let persistedWallet = wallets.first(where: { $0.id == lastId }) {
+                        self.selectedWallet = persistedWallet
+                    } else {
+                        // No specific selection or not found, select first
+                        self.selectedWallet = wallets.first
+                    }
                 }
             }
             .store(in: &cancellables)
     }
     
     func selectWallet(_ wallet: Wallet) {
-        self.selectedWallet = wallet
+        if selectedWallet?.id != wallet.id {
+            HapticsManager.shared.impact(style: .medium)
+            self.selectedWallet = wallet
+            // Persistence
+            if let id = wallet.id {
+                UserDefaults.standard.set(id, forKey: "lastSelectedWalletId")
+            }
+        }
     }
 }

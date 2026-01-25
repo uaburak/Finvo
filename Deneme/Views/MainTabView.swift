@@ -24,21 +24,19 @@ struct MainTabView: View {
                     }
                 
                 TransactionListView()
+                    .environmentObject(walletManager)
                     .tabItem {
                         Label("İşlemler", systemImage: "list.bullet")
                     }
                 
                 AnalyticsView()
+                    .environmentObject(walletManager)
                     .tabItem {
                         Label("Analiz", systemImage: "chart.bar.xaxis")
                     }
             }
             
-            // Shared Tabs (Always visible)
-            NotificationsView()
-                .tabItem {
-                    Label("Bildirimler", systemImage: "bell")
-                }
+
             
             SettingsView()
                 .tabItem {

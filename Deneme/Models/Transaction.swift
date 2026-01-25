@@ -17,6 +17,7 @@ struct Transaction: Identifiable, Codable, Equatable {
     var createdBy: String
     var note: String?
     var isRecurring: Bool
+    var createdByUsername: String? // Denormalized username
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -29,5 +30,6 @@ struct Transaction: Identifiable, Codable, Equatable {
         case createdBy
         case note
         case isRecurring
+        case createdByUsername
     }
 }

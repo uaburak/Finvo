@@ -59,7 +59,7 @@ struct ProfileCreationView: View {
             Button(action: {
                 Task {
                     if await viewModel.saveUserProfile() {
-                        await authManager.checkUserProfile()
+                        await authManager.fetchUserProfile()
                     }
                 }
             }) {

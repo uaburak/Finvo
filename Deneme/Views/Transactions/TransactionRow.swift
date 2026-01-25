@@ -19,37 +19,53 @@ struct TransactionRow: View {
     }
     
     var body: some View {
-        HStack {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(Color(hex: categoryColor).opacity(0.15))
-                    .frame(width: 44, height: 44)
-                
-                Image(systemName: categoryIcon)
-                    .font(.body)
-                    .foregroundColor(Color(hex: categoryColor))
-            }
-            
-            // Text
+        HStack(alignment: .center) {
+            // SOL Taraf (Kategori ve Kullanıcı)
             VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.subCategoryName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                // Sol Üst: Kategori (ve Alt Kategori)
+                HStack {
+                     // Kategori İkonu (Opsiyonel: İsterseniz kaldırabilirsiniz, ama şık durur)
+                     Image(systemName: categoryIcon)
+                         .font(.caption)
+                         .foregroundColor(Color(hex: categoryColor))
+                    
+                    Text(transaction.subCategoryName.isEmpty ? transaction.categoryName : transaction.subCategoryName)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
                 
-                Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
+                // Sol Alt: Kullanıcı Adı
+                Text("@\(transaction.createdByUsername ?? "kullanıcı")")
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
             
             Spacer()
             
-            // Amount
-            Text("\(transaction.type == .income ? "+" : "-") \(transaction.amount, specifier: "%.2f")")
-                .font(.subheadline)
-                .fontWeight(.bold)
-                .foregroundColor(transaction.type == .income ? .green : .red)
+            // SAĞ Taraf (Tutar ve Tarih)
+            VStack(alignment: .trailing, spacing: 4) {
+                // Sağ Üst: Tutar
+                Text("\(transaction.type == .income ? "+" : "-") \(transaction.amount, specifier: "%.2f")")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(transaction.type == .income ? .green : .red)
+                
+                // Sağ Alt: Tarih ve Tekrar İkonu
+                HStack(spacing: 4) {
+                    if transaction.isRecurring {
+                        Image(systemName: "repeat")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
     }
 }

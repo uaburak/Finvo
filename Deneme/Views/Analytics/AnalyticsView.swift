@@ -3,13 +3,9 @@ import Charts
 
 struct AnalyticsView: View {
     @StateObject private var viewModel = AnalyticsViewModel()
+    @EnvironmentObject var walletManager: WalletManager
     @State private var selectedChart = 0 // 0: Pie, 1: Bar
-    
-    // We assume we have access to the selected wallet ID globally or pass it in.
-    // For MVP, using shared instance access via View logic or injection
-    var walletId: String? {
-        FirestoreService.shared.wallets.first?.id
-    }
+    @State private var showCreateWallet = false
     
     var body: some View {
         NavigationStack {
@@ -25,6 +21,12 @@ struct AnalyticsView: View {
                     if viewModel.isLoading {
                         ProgressView()
                             .frame(height: 200)
+                    } else if walletManager.selectedWallet == nil {
+                        VStack {
+                            Text("Cüzdan seçilmedi")
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(height: 200)
                     } else if selectedChart == 0 {
                         // Pie Chart
                         if viewModel.chartData.isEmpty {
@@ -74,7 +76,7 @@ struct AnalyticsView: View {
                         }
                     }
                     
-                    // Insights / Summary (Simple placeholder)
+                    // Insights / Summary
                     VStack(alignment: .leading, spacing: 5) {
                         Text("İçgörüler")
                             .font(.headline)
@@ -87,24 +89,47 @@ struct AnalyticsView: View {
                     .background(Color(.systemGray6))
                     .cornerRadius(12)
                     .padding(.horizontal)
-                    
                 }
             }
             .navigationTitle("Analiz")
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Menu {
+                        ForEach(walletManager.wallets) { wallet in
+                            Button {
+                                walletManager.selectWallet(wallet)
+                            } label: {
+                                HStack {
+                                    Text(wallet.name)
+                                    if walletManager.selectedWallet?.id == wallet.id {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        Button {
+                            showCreateWallet = true
+                        } label: {
+                            Label("Yeni Cüzdan Oluştur", systemImage: "plus.circle")
+                        }
+                        
+                    } label: {
+                        HStack {
+                            Text(walletManager.selectedWallet?.name ?? "Cüzdan Seç")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Image(systemName: "chevron.down.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if let walletId = walletId {
-                        // In iOS 16+, ShareLink is preferred.
-                        // We need to generate the file first. 
-                        // ShareLink requires the item to be ready or a closure?
-                        // Actually ShareLink `item` property takes the URL directly.
-                        // To make it async, we can wrap the generation.
-                        
-                        // Simplifying: Button that generates then shares via sheet?
-                        // Or ShareLink with a placeholder that regenerates?
-                        // Let's use a button that triggers generation, then presents ShareSheet custom or ShareLink if possible.
-                        // ShareLink is easiest if we have the URL.
-                        
+                    if let wallet = walletManager.selectedWallet, let walletId = wallet.id {
                         if let exportURL = viewModel.exportURL {
                             ShareLink(item: exportURL) {
                                 Image(systemName: "square.and.arrow.up")
@@ -121,9 +146,17 @@ struct AnalyticsView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showCreateWallet) {
+                CreateWalletView()
+            }
             .onAppear {
-                if let id = walletId {
-                    Task { await viewModel.fetchData(walletId: id) }
+                if let wallet = walletManager.selectedWallet {
+                    Task { await viewModel.fetchData(for: wallet) }
+                }
+            }
+            .onChange(of: walletManager.selectedWallet) { _, newWallet in
+                if let wallet = newWallet {
+                    Task { await viewModel.fetchData(for: wallet) }
                 }
             }
         }
@@ -132,4 +165,5 @@ struct AnalyticsView: View {
 
 #Preview {
     AnalyticsView()
+        .environmentObject(WalletManager.shared)
 }

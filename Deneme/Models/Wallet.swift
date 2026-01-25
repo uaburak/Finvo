@@ -9,6 +9,8 @@ enum WalletType: String, Codable {
 enum WalletContext: String, Codable {
     case budget
     case todo
+    case savings
+    case travel
 }
 
 struct Wallet: Identifiable, Codable, Equatable {
