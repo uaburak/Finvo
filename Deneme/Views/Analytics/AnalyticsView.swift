@@ -184,128 +184,341 @@ struct AnalyticsView: View {
 
 // MARK: - Subviews
 
+// MARK: - Bento Grid Components
+
 struct OverviewView: View {
     @ObservedObject var viewModel: AnalyticsViewModel
     @EnvironmentObject var walletManager: WalletManager
     
+    // Grid Configuration
+    let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
+    ]
+    
     var body: some View {
-        VStack(spacing: 20) {
-            if viewModel.totalExpense > 0 {
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(viewModel.isExpenseIncreased ? Color.orange.opacity(0.15) : Color.green.opacity(0.15))
-                            .frame(width: 48, height: 48)
-                        
-                        Image(systemName: viewModel.isExpenseIncreased ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis")
-                            .foregroundStyle(viewModel.isExpenseIncreased ? .orange : .green)
-                            .font(.title3)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(viewModel.isExpenseIncreased ? "Harcamalar Arttı" : "Tasarruf Modu")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        
-                        Text("Geçen döneme göre %\(String(format: "%.0f", viewModel.expenseChangePercentage)) \(viewModel.isExpenseIncreased ? "artış" : "azalış") var.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding()
-                .background(Color(.systemBackground))
-                .cornerRadius(20)
-                .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
-                .padding(.horizontal)
-            }
+        VStack(spacing: 16) {
+            // 1. Full Width: Income vs Expense (Visual)
+            IncomeExpenseBento(viewModel: viewModel)
             
-            // Key Metrics
-            HStack(spacing: 16) {
-                ModernMetricTile(
-                    title: "Günlük Ort.",
-                    value: viewModel.averageDailySetting.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                    icon: "calendar.badge.clock",
-                    color: .blue
-                )
-                
-                ModernMetricTile(
-                    title: "En Büyük İşlem",
-                    value: viewModel.largestTransaction?.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))) ?? "0 ₺",
-                    icon: "tag.fill",
-                    color: .purple
-                )
+            // 2. Full Width: Trend Chart
+            TrendBento(viewModel: viewModel)
+            
+            // 3. Grid Row: Top Category & Quick Stats
+            LazyVGrid(columns: columns, spacing: 16) {
+                TopCategoryBento(viewModel: viewModel)
+                StatsBento(viewModel: viewModel)
             }
             .padding(.horizontal)
             
-            // Shared Wallet Chart (if applicable)
+            // 4. Full Width: Category Distribution
+            CategoryChartBento(viewModel: viewModel)
+            
+            // 5. Member Comparison (Shared only)
             if let wallet = walletManager.selectedWallet, wallet.members.count > 1 {
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("Üye Harcamaları", systemImage: "person.2.fill")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    Chart(viewModel.memberData) { item in
-                        BarMark(
-                            x: .value("Tutar", item.value),
-                            y: .value("Üye", item.username)
-                        )
-                        .foregroundStyle(item.color.gradient)
-                        .cornerRadius(4)
-                    }
-                    .frame(height: 150)
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(20)
-                    .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
-                    .padding(.horizontal)
-                }
+                MemberComparisonBento(viewModel: viewModel)
             }
         }
     }
 }
 
-// Helper View for Overview
-struct ModernMetricTile: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
+// MARK: - Bento Components
+
+struct BentoCard<Content: View>: View {
+    let content: Content
+    
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(color)
-                Spacer()
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(value)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+        content
+            .padding(16)
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(20)
+            .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+}
+
+struct IncomeExpenseBento: View {
+    @ObservedObject var viewModel: AnalyticsViewModel
+    
+    var body: some View {
+        BentoCard {
+            VStack(spacing: 16) {
+                // Header
+                HStack {
+                    Label("Gelir / Gider", systemImage: "arrow.left.arrow.right")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
                 
-                Text(title)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                // Content
+                HStack(spacing: 20) {
+                    // Income
+                    VStack(alignment: .leading) {
+                        Text("Gelir")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(viewModel.totalIncome.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
+                            .font(.title3)
+                            .bold()
+                            .foregroundStyle(.green)
+                    }
+                    
+                    Spacer()
+                    
+                    // Circular Ratio
+                    ZStack {
+                        Circle()
+                            .stroke(Color.red.opacity(0.2), lineWidth: 8)
+                            .frame(width: 60, height: 60)
+                        
+                        if viewModel.totalIncome + viewModel.totalExpense > 0 {
+                            let ratio = viewModel.totalIncome / (viewModel.totalIncome + viewModel.totalExpense)
+                            Circle()
+                                .trim(from: 0, to: ratio)
+                                .stroke(Color.green, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+                                .frame(width: 60, height: 60)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Expense
+                    VStack(alignment: .trailing) {
+                        Text("Gider")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(viewModel.totalExpense.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
+                            .font(.title3)
+                            .bold()
+                            .foregroundStyle(.red)
+                    }
+                }
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 110)
-        .background(Color(.systemBackground))
-        .cornerRadius(20)
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(color.opacity(0.1), lineWidth: 1)
-        )
+        .padding(.horizontal)
+    }
+}
+
+struct TrendBento: View {
+    @ObservedObject var viewModel: AnalyticsViewModel
+    
+    var body: some View {
+        BentoCard {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label("Harcama Trendi", systemImage: "chart.xyaxis.line")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    
+                    if viewModel.isExpenseIncreased {
+                        Label("Artış", systemImage: "arrow.up.right")
+                            .font(.caption)
+                            .padding(6)
+                            .background(Color.red.opacity(0.1))
+                            .foregroundStyle(.red)
+                            .clipShape(Capsule())
+                    } else {
+                        Label("Düşüş", systemImage: "arrow.down.right")
+                            .font(.caption)
+                            .padding(6)
+                            .background(Color.green.opacity(0.1))
+                            .foregroundStyle(.green)
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                if viewModel.trendData.isEmpty {
+                    ContentUnavailableView("Veri Yok", systemImage: "chart.xyaxis.line")
+                        .frame(height: 150)
+                } else {
+                    Chart(viewModel.trendData) { item in
+                        AreaMark(
+                            x: .value("Tarih", item.date, unit: viewModel.selectedTimeRange == .year || viewModel.selectedTimeRange == .all ? .month : .day),
+                            y: .value("Tutar", item.value)
+                        )
+                        .foregroundStyle(LinearGradient(colors: [.blue.opacity(0.3), .blue.opacity(0.0)], startPoint: .top, endPoint: .bottom))
+                        .interpolationMethod(.catmullRom)
+                        
+                        LineMark(
+                            x: .value("Tarih", item.date, unit: viewModel.selectedTimeRange == .year || viewModel.selectedTimeRange == .all ? .month : .day),
+                            y: .value("Tutar", item.value)
+                        )
+                        .foregroundStyle(.blue)
+                        .interpolationMethod(.catmullRom)
+                    }
+                    .chartYAxis(.hidden)
+                    .frame(height: 180)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+struct TopCategoryBento: View {
+    @ObservedObject var viewModel: AnalyticsViewModel
+    
+    var body: some View {
+        BentoCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Zirve", systemImage: "crown.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                
+                if let topCategoryName = viewModel.topCategoryName,
+                   let category = viewModel.chartData.first(where: { $0.category == topCategoryName }) {
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(category.category)
+                            .font(.headline)
+                            .lineLimit(1)
+                        
+                        Text(category.value.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    ProgressView(value: category.percentage, total: 100)
+                        .tint(category.color)
+                        .clipShape(Capsule())
+                } else {
+                    Text("-")
+                        .font(.headline)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+struct StatsBento: View {
+    @ObservedObject var viewModel: AnalyticsViewModel
+    
+    var body: some View {
+        BentoCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Günlük Ort.", systemImage: "calendar.badge.clock")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.averageDailySetting.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
+                        .font(.headline)
+                    
+                    Text("Ortalama")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+struct CategoryChartBento: View {
+    @ObservedObject var viewModel: AnalyticsViewModel
+    @State private var selectedSlice: AnalyticsViewModel.CategoryDouble?
+    
+    var body: some View {
+        BentoCard {
+            VStack(spacing: 20) {
+                HStack {
+                    Label("Dağılım", systemImage: "chart.pie.fill")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                
+                HStack {
+                    // Chart
+                    Chart(viewModel.chartData.prefix(5)) { item in
+                        SectorMark(
+                            angle: .value("Tutar", item.value),
+                            innerRadius: .ratio(0.6),
+                            angularInset: 2
+                        )
+                        .cornerRadius(6)
+                        .foregroundStyle(item.color)
+                    }
+                    .frame(width: 120, height: 120)
+                    
+                    Spacer()
+                    
+                    // Legend
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(viewModel.chartData.prefix(4)) { item in
+                            HStack {
+                                Circle()
+                                    .fill(item.color)
+                                    .frame(width: 8, height: 8)
+                                Text(item.category)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text("%\(Int(item.percentage))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        if viewModel.chartData.count > 4 {
+                            Text("+ \(viewModel.chartData.count - 4) Diğer")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 12)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                
+                // Drill down button
+                NavigationLink(destination: CategoriesBreakdownView(viewModel: viewModel)) {
+                    Text("Tüm Detayları Gör")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color(.systemGroupedBackground))
+                        .cornerRadius(10)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+struct MemberComparisonBento: View {
+    @ObservedObject var viewModel: AnalyticsViewModel
+    
+    var body: some View {
+        BentoCard {
+            VStack(alignment: .leading, spacing: 16) {
+                Label("Üye Harcamaları", systemImage: "person.2.fill")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                
+                Chart(viewModel.memberData) { item in
+                    BarMark(
+                        x: .value("Tutar", item.value),
+                        y: .value("Üye", item.username)
+                    )
+                    .foregroundStyle(item.color.gradient)
+                    .cornerRadius(4)
+                    .annotation(position: .trailing) {
+                        Text(item.value.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(height: CGFloat(viewModel.memberData.count * 40 + 20))
+            }
+        }
+        .padding(.horizontal)
     }
 }
 
