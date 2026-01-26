@@ -12,9 +12,11 @@ struct BudgetDashboardView: View {
                          Text("Toplam Varlık")
                              .font(.caption)
                              .foregroundColor(.white.opacity(0.8))
-                         Text("₺\(viewModel.totalBalance, specifier: "%.2f")")
+                         Text(viewModel.totalBalance.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
                              .font(.system(size: 32, weight: .bold))
                              .foregroundColor(.white)
+                             .contentTransition(.numericText())
+                             .animation(.snappy, value: viewModel.totalBalance)
                      }
                      Spacer()
                  }
@@ -27,9 +29,11 @@ struct BudgetDashboardView: View {
                              Text("Gelir")
                                  .foregroundColor(.white.opacity(0.8))
                          }
-                         Text("₺\(viewModel.monthlyIncome, specifier: "%.2f")")
+                         Text(viewModel.monthlyIncome.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
                              .font(.headline)
                              .foregroundColor(.white)
+                             .contentTransition(.numericText())
+                             .animation(.snappy, value: viewModel.monthlyIncome)
                      }
                      
                      Spacer()
@@ -41,9 +45,11 @@ struct BudgetDashboardView: View {
                              Image(systemName: "arrow.down.circle.fill")
                                  .foregroundColor(.red)
                          }
-                         Text("₺\(viewModel.monthlyExpense, specifier: "%.2f")")
+                         Text(viewModel.monthlyExpense.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
                              .font(.headline)
                              .foregroundColor(.white)
+                             .contentTransition(.numericText())
+                             .animation(.snappy, value: viewModel.monthlyExpense)
                      }
                  }
              }

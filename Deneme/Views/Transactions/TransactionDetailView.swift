@@ -40,7 +40,7 @@ struct TransactionDetailView: View {
                             .font(.headline)
                             .foregroundColor(.secondary)
                         
-                        Text("\(transaction.amount, specifier: "%.2f") \(transaction.currency)")
+                        Text(transaction.amount.formatted(.currency(code: transaction.currency).precision(.fractionLength(0))))
                             .font(.system(size: 34, weight: .bold))
                             .foregroundColor(transaction.type == .income ? .green : .red)
                     }

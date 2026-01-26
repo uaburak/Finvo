@@ -462,4 +462,40 @@ class FirestoreService: ObservableObject {
         log += "Tamamlandı. Toplam Güncellenen İşlem: \(updatedCount)"
         return log
     }
+    // MARK: - Report Operations
+    
+    func saveReport(_ report: Report) async throws {
+        let walletRef = db.collection("wallets").document(report.walletId)
+        let reportsRef = walletRef.collection("reports")
+        
+        try reportsRef.addDocument(from: report)
+    }
+    
+    func fetchReports(walletId: String) async throws -> [Report] {
+        let walletRef = db.collection("wallets").document(walletId)
+        let snapshot = try await walletRef.collection("reports")
+            .order(by: "createdAt", descending: true)
+            .getDocuments()
+            
+        return snapshot.documents.compactMap { try? $0.data(as: Report.self) }
+    }
+    
+    // Advanced Transaction Fetch (Filtering)
+    func fetchTransactions(walletId: String, startDate: Date, endDate: Date, memberId: String? = nil) async throws -> [Transaction] {
+        let walletRef = db.collection("wallets").document(walletId)
+        var query = walletRef.collection("transactions")
+            .whereField("date", isGreaterThanOrEqualTo: startDate)
+            .whereField("date", isLessThanOrEqualTo: endDate)
+            // .order(by: "date", descending: true) // Requires composite index if combined with other filters
+        
+        if let memberId = memberId {
+            query = query.whereField("createdBy", isEqualTo: memberId)
+        }
+        
+        let snapshot = try await query.getDocuments()
+        let transactions = snapshot.documents.compactMap { try? $0.data(as: Transaction.self) }
+        
+        // Manual sort to avoid needing complex composite indexes for every combination in MVP
+        return transactions.sorted(by: { $0.date > $1.date })
+    }
 }

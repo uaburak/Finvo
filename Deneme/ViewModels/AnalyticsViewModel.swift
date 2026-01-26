@@ -2,27 +2,88 @@ import Foundation
 import Combine
 import SwiftUI
 
+enum AnalyticsTimeRange: String, CaseIterable {
+    case week = "Haftalık"
+    case month = "Aylık"
+    case year = "Yıllık"
+    case all = "Tümü"
+}
+
 @MainActor
 class AnalyticsViewModel: ObservableObject {
-    @Published var chartData: [CategoryDouble] = [] // For Pie Chart
-    @Published var monthlyData: [MonthDouble] = [] // For Bar Chart
+    // published properties
+    @Published var selectedTimeRange: AnalyticsTimeRange = .month {
+        didSet {
+            // Re-process data when time range changes
+            processData()
+        }
+    }
+    
+    @Published var chartData: [CategoryDouble] = [] // For Pie/Donut Chart (Categories)
+    @Published var trendData: [DateValue] = []      // For Line/Bar Chart (Trend)
+    @Published var memberData: [MemberDouble] = []  // For Member Comparison
+    
+    // Summary Stats
+    @Published var totalIncome: Double = 0
+    @Published var totalExpense: Double = 0
+    @Published var balance: Double = 0
+    
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var exportURL: URL?
+    @Published var exportItem: ExportItem?
+    
+    struct ExportItem: Identifiable {
+        let id = UUID()
+        let url: URL
+    }
+    
+    // Interactivity
+    @Published var selectedCategory: CategoryDouble?
+    
+    // Computed: Transactions for the selected category (for drill-down)
+    var transactionsForSelectedCategory: [Transaction] {
+        guard let selected = selectedCategory else { return [] }
+        return filterTransactionsByTimeRange(allTransactions, range: selectedTimeRange, offset: 0)
+            .filter { $0.categoryName == selected.category && $0.type == .expense }
+            .sorted(by: { $0.date > $1.date })
+    }
+    
+    // Comparison & Insights
+    @Published var expenseChangePercentage: Double = 0
+    @Published var isExpenseIncreased: Bool = false
+    @Published var averageDailySetting: Double = 0
+    @Published var largestTransaction: Transaction?
+    @Published var topCategoryName: String?
+    
+    // Valid Transactions Cache
+    private var allTransactions: [Transaction] = []
     
     // Structs for Charts
-    struct CategoryDouble: Identifiable {
+    struct CategoryDouble: Identifiable, Equatable {
         let id = UUID()
         let category: String
         let value: Double
         let color: Color
+        let percentage: Double
+        
+        static func == (lhs: CategoryDouble, rhs: CategoryDouble) -> Bool {
+            return lhs.id == rhs.id
+        }
     }
     
-    struct MonthDouble: Identifiable {
+    struct DateValue: Identifiable {
         let id = UUID()
-        let month: String
-        let income: Double
-        let expense: Double
+        let date: Date
+        let value: Double // Expense or Net
+        let type: String // "Income" or "Expense"
+    }
+    
+    struct MemberDouble: Identifiable {
+        let id = UUID()
+        let username: String
+        let value: Double
+        let color: Color
+        let percentage: Double // New field
     }
     
     private let firestoreService = FirestoreService.shared
@@ -33,8 +94,8 @@ class AnalyticsViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let transactions = try await firestoreService.fetchAllTransactions(walletId: walletId)
-            processTransactions(transactions)
+            self.allTransactions = try await firestoreService.fetchAllTransactions(walletId: walletId)
+            processData()
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription
@@ -42,67 +103,152 @@ class AnalyticsViewModel: ObservableObject {
         }
     }
     
-    private func processTransactions(_ transactions: [Transaction]) {
-        // 1. Pie Chart Data (Expenses by Category for this month or all time? Let's do All Time for simplicity or filtered. PRD says "Ana kategoriye göre gider dağılımı")
-        // Let's filter for expense
-        let expenses = transactions.filter { $0.type == .expense }
+    private func processData() {
+        let currentRangeTransactions = filterTransactionsByTimeRange(allTransactions, range: selectedTimeRange, offset: 0)
+        let previousRangeTransactions = filterTransactionsByTimeRange(allTransactions, range: selectedTimeRange, offset: 1) // 1 period back
         
-        let groupedByCategory = Dictionary(grouping: expenses, by: { $0.categoryName })
+        // 1. Calculate Summaries
+        let income = currentRangeTransactions.filter { $0.type == .income }.reduce(0) { $0 + $1.amount }
+        let expense = currentRangeTransactions.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
+        self.totalIncome = income
+        self.totalExpense = expense
+        self.balance = income - expense
         
-        self.chartData = groupedByCategory.map { (key, value) in
-            let total = value.reduce(0) { $0 + $1.amount }
-            // Find color safely
+        // 2. Comparison Logic (Expense vs Previous)
+        let prevExpense = previousRangeTransactions.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
+        if prevExpense > 0 {
+            self.expenseChangePercentage = ((expense - prevExpense) / prevExpense) * 100
+        } else {
+            self.expenseChangePercentage = expense > 0 ? 100 : 0
+        }
+        self.isExpenseIncreased = expense > prevExpense
+        
+        // 3. Advanced Insights
+        // Average Daily
+        let dayCount = dayCount(for: selectedTimeRange)
+        self.averageDailySetting = expense / Double(dayCount)
+        
+        // Largest Transaction
+        self.largestTransaction = currentRangeTransactions.filter { $0.type == .expense }.max(by: { $0.amount < $1.amount })
+        
+        // Top Category
+        let expensesOnly = currentRangeTransactions.filter { $0.type == .expense }
+        let groupedByCategory = Dictionary(grouping: expensesOnly, by: { $0.categoryName })
+        if let topCat = groupedByCategory.max(by: { $0.value.reduce(0) { $0+$1.amount } < $1.value.reduce(0) { $0 + $1.amount } }) {
+            self.topCategoryName = topCat.key
+        } else {
+            self.topCategoryName = nil
+        }
+        
+        // 4. Category Breakdown
+        let totalExp = expensesOnly.reduce(0) { $0 + $1.amount }
+        self.chartData = groupedByCategory.map { (key, transactions) in
+            let sum = transactions.reduce(0) { $0 + $1.amount }
+            let percent = totalExp > 0 ? (sum / totalExp) * 100 : 0
             let category = CategoryManager.shared.categories.first(where: { $0.name == key })
             let colorHex = category?.colorHex ?? "#8E8E93"
-            return CategoryDouble(category: key, value: total, color: Color(hex: colorHex) ?? .gray)
+            return CategoryDouble(category: key, value: sum, color: Color(hex: colorHex) ?? .gray, percentage: percent)
         }.sorted(by: { $0.value > $1.value })
         
-        // 2. Bar Chart Data (Monthly Income vs Expense - Last 6 months)
-        // Group by Month
-        let calendar = Calendar.current
-        let groupedByMonth = Dictionary(grouping: transactions) { transaction -> String in
-            let date = transaction.date
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM yyyy"
-            return formatter.string(from: date)
+        // 5. Trend Data
+        let groupedByDate: [Date: [Transaction]]
+        if selectedTimeRange == .week || selectedTimeRange == .month {
+             groupedByDate = Dictionary(grouping: currentRangeTransactions) { Calendar.current.startOfDay(for: $0.date) }
+        } else {
+            groupedByDate = Dictionary(grouping: currentRangeTransactions) { transaction in
+                let components = Calendar.current.dateComponents([.year, .month], from: transaction.date)
+                return Calendar.current.date(from: components) ?? transaction.date
+            }
         }
         
-        // We need to sort months chronologically, which is hard with String keys. 
-        // Better to use Date components.
-        // Simplified approach: iterate backwards 6 months from now.
-        
-        var tempMonthly: [MonthDouble] = []
-        for i in 0..<6 {
-            guard let date = calendar.date(byAdding: .month, value: -i, to: Date()) else { continue }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM yyyy" // e.g., "Oct 2023"
-            let key = formatter.string(from: date)
-            
-            let monthTransactions = groupedByMonth[key] ?? []
-            let income = monthTransactions.filter { $0.type == .income }.reduce(0) { $0 + $1.amount }
-            let expense = monthTransactions.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
-            
-            tempMonthly.append(MonthDouble(month: key, income: income, expense: expense))
+        var tempTrend: [DateValue] = []
+        for (date, transactions) in groupedByDate {
+            let dailyExpense = transactions.filter({ $0.type == .expense }).reduce(0) { $0 + $1.amount }
+            tempTrend.append(DateValue(date: date, value: dailyExpense, type: "Gider"))
         }
-        self.monthlyData = tempMonthly.reversed() // Oldest to newest
+        self.trendData = tempTrend.sorted(by: { $0.date < $1.date })
+        // 6. Member Comparison
+        let groupedByUser = Dictionary(grouping: expensesOnly, by: { $0.createdByUsername ?? "Bilinmeyen" })
+        let colors: [Color] = [.blue, .green, .orange, .purple, .pink, .yellow]
+        
+        let totalExpensesForMembers = expensesOnly.reduce(0) { $0 + $1.amount }
+        
+        self.memberData = groupedByUser.keys.enumerated().map { (index, username) in
+            let transactions = groupedByUser[username] ?? []
+            let sum = transactions.reduce(0) { $0 + $1.amount }
+            let color = colors[index % colors.count]
+            let percent = totalExpensesForMembers > 0 ? (sum / totalExpensesForMembers) * 100 : 0
+            return MemberDouble(username: username, value: sum, color: color, percentage: percent)
+        }.sorted(by: { $0.value > $1.value })
     }
     
-    func createExportFile(walletId: String) async -> URL? {
-        do {
-            let transactions = try await firestoreService.fetchAllTransactions(walletId: walletId)
+    private func filterTransactionsByTimeRange(_ transactions: [Transaction], range: AnalyticsTimeRange, offset: Int) -> [Transaction] {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Calculate target range start/end
+        var components = DateComponents()
+        switch range {
+        case .week: components.weekOfYear = -offset
+        case .month: components.month = -offset
+        case .year: components.year = -offset
+        case .all: return transactions // No concept of offset for 'All' effectively
+        }
+        
+        guard let targetDate = calendar.date(byAdding: components, to: now) else { return [] }
+        
+        let startDate: Date
+        let endDate: Date
+        
+        switch range {
+        case .week:
+            guard let rangeStart = calendar.dateInterval(of: .weekOfYear, for: targetDate)?.start else { return [] }
+            guard let rangeEnd = calendar.date(byAdding: .weekOfYear, value: 1, to: rangeStart) else { return [] }
+            startDate = rangeStart
+            endDate = rangeEnd
             
+        case .month:
+            guard let rangeStart = calendar.dateInterval(of: .month, for: targetDate)?.start else { return [] }
+            guard let rangeEnd = calendar.date(byAdding: .month, value: 1, to: rangeStart) else { return [] }
+            startDate = rangeStart
+            endDate = rangeEnd
+            
+        case .year:
+            guard let rangeStart = calendar.dateInterval(of: .year, for: targetDate)?.start else { return [] }
+            guard let rangeEnd = calendar.date(byAdding: .year, value: 1, to: rangeStart) else { return [] }
+            startDate = rangeStart
+            endDate = rangeEnd
+            
+        case .all:
+            return transactions
+        }
+        
+        return transactions.filter { $0.date >= startDate && $0.date < endDate }
+    }
+    
+    private func dayCount(for range: AnalyticsTimeRange) -> Int {
+        switch range {
+        case .week: return 7
+        case .month: return 30
+        case .year: return 365
+        case .all: return 365 // approximation or total count
+        }
+    }
+    
+    func createExportFile(walletId: String) async -> ExportItem? {
+        do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
             encoder.dateEncodingStrategy = .iso8601
             
-            let data = try encoder.encode(transactions)
+            let data = try encoder.encode(allTransactions)
             
             let tempDir = FileManager.default.temporaryDirectory
             let fileName = "Finvo_Export_\(Date().formatted(date: .numeric, time: .omitted)).json"
             let fileURL = tempDir.appendingPathComponent(fileName)
             
             try data.write(to: fileURL)
-            return fileURL
+            return ExportItem(url: fileURL)
         } catch {
             errorMessage = "Dışa aktarma hatası: \(error.localizedDescription)"
             return nil
