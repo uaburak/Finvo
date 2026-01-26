@@ -48,8 +48,8 @@ struct ListItem: View {
                 
                 if isRecurring {
                     Circle()
-                        .fill(Color.white)
-                        .frame(width: 12, height: 12)
+                        .fill(Color(UIColor.systemBackground))
+                        .frame(width: 14, height: 14)
                         .overlay(
                             Image(systemName: "repeat")
                                 .font(.system(size: 8, weight: .bold))
@@ -85,6 +85,7 @@ struct ListItem: View {
                 Toggle("", isOn: isOn)
                     .labelsHidden()
                     .tint(.blue)
+                    .scaleEffect(0.95)
             } else {
                 VStack(alignment: .trailing, spacing: 2) { // Increased spacing slightly (0 -> 2)
                     if let value = value {

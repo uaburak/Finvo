@@ -3,6 +3,7 @@ import SwiftUI
 struct CategoriesView: View {
     @StateObject private var categoryManager = CategoryManager.shared
     @StateObject private var authManager = AuthenticationManager.shared
+    @EnvironmentObject var tabManager: TabManager // Injected from MainTabView, but explicit injection ensures availability
     @State private var selectedType: CategoryType = .expense
     
     // Sheet State
@@ -10,6 +11,7 @@ struct CategoriesView: View {
     @State private var categoryToEdit: Category?
     
     @State private var searchText = ""
+    @State private var showProAlert = false
     
     var body: some View {
         NavigationStack {
@@ -37,7 +39,8 @@ struct CategoriesView: View {
                             )
                             .background(
                                 NavigationLink(destination: SubCategoryListView(category: category)
-                                                .environmentObject(categoryManager)) {
+                                                .environmentObject(categoryManager)
+                                                .environmentObject(tabManager)) { // Ensure TabManager passes down
                                     EmptyView()
                                 }
                                 .opacity(0)
@@ -84,19 +87,26 @@ struct CategoriesView: View {
                     .frame(width: 200)
                 }
                 
-                // Trailing: Add Button (Pro)
+                // Trailing: Add Button (Always Visible)
                 ToolbarItem(placement: .topBarTrailing) {
-                    if authManager.currentUserProfile?.isPro ?? false {
-                        Button {
-                            showAddSheet = true
-                        } label: {
-                            Image(systemName: "plus")
+                    Button("Ekle") {
+                        if authManager.currentUserProfile?.isPro == true {
+                             showAddSheet = true
+                        } else {
+                             showProAlert = true
                         }
                     }
                 }
             }
+            .alert("Premium Özellik", isPresented: $showProAlert) {
+                Button("Pro Ol", role: .none) {
+                    tabManager.selectedTab = TabManager.settings
+                }
+                Button("İptal", role: .cancel) { }
+            } message: {
+                Text("Yeni kategori eklemek için Pro üye olmanız gerekmektedir.")
+            }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Ara")
-            .background(Color(UIColor.systemGroupedBackground))
             .sheet(isPresented: $showAddSheet) {
                 AddEditCategoryView(type: selectedType)
                     .environmentObject(categoryManager)
@@ -111,4 +121,5 @@ struct CategoriesView: View {
 
 #Preview {
     CategoriesView()
+        .environmentObject(TabManager())
 }

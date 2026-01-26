@@ -94,4 +94,19 @@ class AuthenticationManager: ObservableObject {
         guard let user = user else { return }
         try await user.delete()
     }
+    
+    // Test: Update Pro Status
+    func updateProStatus(isPro: Bool) async {
+        guard let uid = user?.uid else { return }
+        do {
+            try await db.collection("users").document(uid).updateData(["isPro": isPro])
+            // Update local
+            if var profile = currentUserProfile {
+                profile.isPro = isPro
+                self.currentUserProfile = profile
+            }
+        } catch {
+            print("Pro status update failed: \(error)")
+        }
+    }
 }

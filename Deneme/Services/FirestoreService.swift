@@ -12,6 +12,7 @@ class FirestoreService: ObservableObject {
     @Published var wallets: [Wallet] = []
     
     private var walletsListener: ListenerRegistration?
+    private var currentListenerUserId: String? // Track current user
     
     private init() {}
     
@@ -42,9 +43,16 @@ class FirestoreService: ObservableObject {
     }
     
     /// Listen for wallets where the user is a member
-    func  startListeningWallets(forUser uid: String) {
-        // Remove existing listener if any
+    func startListeningWallets(forUser uid: String) {
+        // If already listening for this user, do nothing to prevent flicker
+        if walletsListener != nil && currentListenerUserId == uid {
+            return
+        }
+        
+        // Remove existing listener if any (for different user)
         stopListeningWallets()
+        
+        currentListenerUserId = uid
         
         // Query: wallets where 'members' array contains uid
         // Note: 'array-contains' requires an index potentially.
@@ -63,9 +71,6 @@ class FirestoreService: ObservableObject {
                     return
                 }
                 
-                self.wallets = documents.compactMap { document in
-                    try? document.data(as: Wallet.self)
-                }
                 self.wallets = documents.compactMap { document in
                     try? document.data(as: Wallet.self)
                 }

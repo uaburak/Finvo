@@ -77,6 +77,19 @@ struct SettingsView: View {
                     Link("Gizlilik Politikası", destination: URL(string: "https://example.com/privacy")!)
                 }
                 
+                // Section: Test / Developer
+                Section(header: Text("Test / Geliştirici")) {
+                    Toggle("Pro Üyelik (Simülasyon)", isOn: Binding(
+                        get: { authManager.currentUserProfile?.isPro ?? false },
+                        set: { newValue in
+                            Task {
+                                await authManager.updateProStatus(isPro: newValue)
+                            }
+                        }
+                    ))
+                    .tint(.blue)
+                }
+                
                 // Section: Logout
                 Section {
                     Button(role: .destructive) {

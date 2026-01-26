@@ -112,11 +112,12 @@ struct TransactionListView: View {
                 }
                 
                 // Trailing: Filter Button
+                // Trailing: Filter Button
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showFilterSheet = true
                     } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
+                        Image(systemName: "line.3.horizontal.decrease")
                             .imageScale(.large)
                     }
                 }
