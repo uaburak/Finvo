@@ -96,6 +96,15 @@ service cloud.firestore {
         // We use hasRole check which reads parent wallet
         allow write: if hasRole(walletId, "editor") || isOwner(walletId);
       }
+      
+      // Debts (Sub-collection)
+      match /debts/{debtId} {
+        // Read: Any ACTIVE member of parent wallet
+        allow read: if isActiveMember(walletId);
+        
+        // Create/Update/Delete: Owner OR Editor
+        allow write: if hasRole(walletId, "editor") || isOwner(walletId);
+      }
     }
     
     // Notifications (Generic)

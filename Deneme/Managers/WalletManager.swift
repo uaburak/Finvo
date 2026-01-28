@@ -72,4 +72,15 @@ class WalletManager: ObservableObject {
             }
         }
     }
+    
+    func updateWalletLocally(_ wallet: Wallet) {
+        // Find and replace
+        if let index = wallets.firstIndex(where: { $0.id == wallet.id }) {
+            wallets[index] = wallet
+        }
+        
+        if selectedWallet?.id == wallet.id {
+            selectedWallet = wallet
+        }
+    }
 }

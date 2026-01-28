@@ -28,7 +28,7 @@ struct TransactionRow: View {
             title: transaction.subCategoryName.isEmpty ? transaction.categoryName : transaction.subCategoryName,
             subtitle: transaction.categoryName, // Not shown if username exists, but good fallback
             username: transaction.createdByUsername,
-            isRecurring: transaction.isRecurring,
+            isRecurring: transaction.isRecurring || transaction.parentTransactionId != nil,
             value: "\(transaction.type == .income ? "+" : "-") \(transaction.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))))",
             valueColor: transaction.type == .income ? .green : .red,
             secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)

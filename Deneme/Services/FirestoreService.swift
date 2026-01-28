@@ -20,6 +20,19 @@ class FirestoreService: ObservableObject {
     
     /// Create a new wallet
     func createWallet(name: String, type: WalletType, context: WalletContext, performAsUser uid: String) async throws -> Wallet {
+        // 1. Check Pro Status and Wallet Limit
+        let userDoc = try await db.collection("users").document(uid).getDocument()
+        if let user = try? userDoc.data(as: User.self), !user.isPro {
+            // Count existing wallets where user is owner
+            let snapshot = try await db.collection("wallets")
+                .whereField("ownerId", isEqualTo: uid)
+                .getDocuments()
+            
+            if snapshot.documents.count >= 2 {
+                throw NSError(domain: "Finvo", code: 403, userInfo: [NSLocalizedDescriptionKey: "Ücretsiz planda en fazla 2 cüzdan oluşturabilirsiniz. Sınırsız cüzdan için Pro'ya yükseltin."])
+            }
+        }
+
         let newWalletRef = db.collection("wallets").document()
         
         let wallet = Wallet(
@@ -86,6 +99,11 @@ class FirestoreService: ObservableObject {
         walletsListener?.remove()
         walletsListener = nil
         wallets = []
+    }
+    
+    func updateWallet(_ wallet: Wallet) async throws {
+        guard let id = wallet.id else { return }
+        try db.collection("wallets").document(id).setData(from: wallet, merge: true)
     }
     
     func deleteWallet(walletId: String) async throws {
@@ -199,6 +217,83 @@ class FirestoreService: ObservableObject {
         }
         
         return (income, expense)
+    }
+    
+    // MARK: - Debt Operations
+    
+    func addDebt(walletId: String, debt: Debt) async throws -> String {
+        let walletRef = db.collection("wallets").document(walletId)
+        let debtsRef = walletRef.collection("debts")
+        
+        let docRef = try debtsRef.addDocument(from: debt)
+        return docRef.documentID
+    }
+    
+    func fetchActiveDebts(walletId: String) async throws -> [Debt] {
+        let walletRef = db.collection("wallets").document(walletId)
+        let snapshot = try await walletRef.collection("debts")
+            .whereField("status", isEqualTo: DebtStatus.active.rawValue)
+            .getDocuments()
+            
+        return snapshot.documents.compactMap { try? $0.data(as: Debt.self) }
+    }
+    
+    func updateDebt(walletId: String, debt: Debt) async throws {
+        guard let debtId = debt.id else { return }
+        let walletRef = db.collection("wallets").document(walletId)
+        try walletRef.collection("debts").document(debtId).setData(from: debt, merge: true)
+    }
+    
+    func deleteDebt(walletId: String, debtId: String) async throws {
+        let walletRef = db.collection("wallets").document(walletId)
+        try await walletRef.collection("debts").document(debtId).delete()
+    }
+    
+    /// Reverts a debt installment payment (called when an installment transaction is deleted)
+    func rollbackDebtInstallment(walletId: String, debtId: String, amount: Double) async throws {
+        let walletRef = db.collection("wallets").document(walletId)
+        let debtRef = walletRef.collection("debts").document(debtId)
+        
+        // Use a transaction to ensure atomic update if possible, but for MVP simple update is okay.
+        // We will just read-modify-write here since we don't have a transaction infrastructure set up in this Service class easily.
+        // Actually Firestore.firestore().runTransaction is robust. Let's use getDocument and update.
+        
+        let doc = try await debtRef.getDocument()
+        guard var debt = try? doc.data(as: Debt.self) else { return }
+        
+        // Revert counters
+        debt.paidInstallments -= 1
+        if debt.paidInstallments < 0 { debt.paidInstallments = 0 }
+        
+        debt.remainingAmount += amount
+        // Limit remaining amount to total? No, maybe amount changed, but logic should hold.
+        // Just ensure it doesn't exceed totalAmount theoretically, but simpler to just add back.
+        if debt.remainingAmount > debt.totalAmount {
+             // Optional safety: debt.remainingAmount = debt.totalAmount
+        }
+        
+        // If it was completed, make it active again
+        if debt.status == .completed {
+            debt.status = .active
+        }
+        
+        // Note: We do NOT rollback nextDueDate because we don't know the exact schedule easily 
+        // without complex recalculation. 
+        // However, if the user deleted the *latest* installment, technically the date should revert.
+        // But if they deleted a past one, date shouldn't change.
+        // For now, we only trust the counters.
+        
+        try debtRef.setData(from: debt, merge: true)
+    }
+    
+    // Fetch all debts (active and completed)
+    func fetchAllDebts(walletId: String) async throws -> [Debt] {
+        let walletRef = db.collection("wallets").document(walletId)
+        let snapshot = try await walletRef.collection("debts")
+            .order(by: "nextDueDate", descending: false)
+            .getDocuments()
+            
+        return snapshot.documents.compactMap { try? $0.data(as: Debt.self) }
     }
     
     // Fetch ALL transactions for export/analytics (Be careful with cost)

@@ -51,7 +51,7 @@ struct AnalyticsView: View {
                 }
             }
             .sheet(item: $viewModel.exportItem) { item in
-                 ShareSheet(activityItems: [item.url])
+                 AnalyticsShareSheet(activityItems: [item.url])
             }
             .onAppear {
                 if let wallet = walletManager.selectedWallet {
@@ -210,6 +210,16 @@ struct OverviewView: View {
                 StatsBento(viewModel: viewModel)
             }
             .padding(.horizontal)
+            
+            // New Debts Card (If any active debts)
+            if !viewModel.activeDebts.isEmpty {
+                DebtSummaryBento(viewModel: viewModel)
+            }
+            
+            // New Debts Card (If any active debts)
+            if !viewModel.activeDebts.isEmpty {
+                DebtSummaryBento(viewModel: viewModel)
+            }
             
             // 4. Full Width: Category Distribution
             CategoryChartBento(viewModel: viewModel)
@@ -617,6 +627,16 @@ struct CategoryRowView: View {
     var body: some View {
         VStack(spacing: 0) {
             Button {
+                // Pro Check
+                if let user = AuthenticationManager.shared.currentUserProfile, !user.isPro {
+                    // Trigger global alert or just do nothing/shake? 
+                    // For now let's print or use a visual cue. 
+                    // Ideally we should show a "Go Pro" sheet.
+                    // Since we can't easily inject a sheet trigger here without more refactoring, 
+                    // we will just block the action.
+                    return
+                }
+                
                 withAnimation {
                     if isSelected {
                         viewModel.selectedCategory = nil
@@ -649,6 +669,13 @@ struct CategoryRowView: View {
                     }
                     
                     Spacer()
+                    
+                    if let user = AuthenticationManager.shared.currentUserProfile, !user.isPro {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.trailing, 4)
+                    }
                     
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(item.value.formatted(.currency(code: "TRY")))
@@ -801,12 +828,63 @@ struct QuickAccessCard: View {
     }
 }
 
+struct DebtSummaryBento: View {
+    @ObservedObject var viewModel: AnalyticsViewModel
+    
+    var body: some View {
+        NavigationLink(destination: DebtsDetailView(viewModel: viewModel)) {
+            BentoCard {
+                HStack(spacing: 16) {
+                    // Icon Box
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.orange.opacity(0.1))
+                            .frame(width: 50, height: 50)
+                        
+                        Image(systemName: "creditcard.trianglebadge.exclamationmark")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Aktif Borçlar")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text("\(viewModel.activeDebts.count) Borç - \(viewModel.upcomingDebtPayment.formatted(.currency(code: "TRY").precision(.fractionLength(0)))) / Ay")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(viewModel.totalDebtRemaining.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
+                            .font(.title3)
+                            .bold()
+                            .foregroundColor(.primary)
+                        
+                        Text("Kalan")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
 #Preview {
     AnalyticsView()
         .environmentObject(WalletManager.shared)
 }
 
-struct ShareSheet: UIViewControllerRepresentable {
+struct AnalyticsShareSheet: UIViewControllerRepresentable {
     var activityItems: [Any]
     var applicationActivities: [UIActivity]? = nil
 

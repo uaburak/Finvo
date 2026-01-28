@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthenticationManager
+    @AppStorage("isOnboardingSeen") var isOnboardingSeen: Bool = false
     
     var body: some View {
         Group {
@@ -12,9 +13,14 @@ struct ContentView: View {
                     ProfileCreationView()
                 }
             } else {
-                LoginView()
+                if isOnboardingSeen {
+                    LoginView()
+                } else {
+                    OnboardingView()
+                }
             }
         }
+
         .animation(.default, value: authManager.isAuthenticated)
         .animation(.default, value: authManager.isProfileComplete)
     }

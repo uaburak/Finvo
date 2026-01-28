@@ -22,17 +22,13 @@ struct MainTabView: View {
                 // --- Budget Context (Default) ---
                 DashboardView()
                     .environmentObject(walletManager)
+                    .environmentObject(tabManager)
                     .tabItem {
                         Label("Özet", systemImage: "chart.pie.fill")
                     }
                     .tag(TabManager.dashboard)
                 
-                TransactionListView()
-                    .environmentObject(walletManager)
-                    .tabItem {
-                        Label("İşlemler", systemImage: "list.bullet")
-                    }
-                    .tag(TabManager.transactions)
+
                 
                 AnalyticsView()
                     .environmentObject(walletManager)

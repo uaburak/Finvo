@@ -21,6 +21,8 @@ struct Wallet: Identifiable, Codable, Equatable {
     var context: WalletContext // New field
     var members: [String]
     var permissions: [String: String]
+    var monthlyLimit: Double?
+    var savingsGoal: Double?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -30,6 +32,8 @@ struct Wallet: Identifiable, Codable, Equatable {
         case context
         case members
         case permissions
+        case monthlyLimit
+        case savingsGoal
     }
     
     func isOwner(userId: String) -> Bool {

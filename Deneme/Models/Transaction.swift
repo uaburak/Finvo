@@ -18,6 +18,11 @@ struct Transaction: Identifiable, Codable, Equatable {
     var note: String?
     var isRecurring: Bool
     var createdByUsername: String? // Denormalized username
+    var linkedDebtId: String?
+    var recurrenceFrequency: RecurrenceFrequency?
+    var endDate: Date? // When the recurrence ends
+    var nextOccurrenceDate: Date? // Next scheduled date
+    var parentTransactionId: String? // If this is a child of a recurring transaction
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -31,5 +36,10 @@ struct Transaction: Identifiable, Codable, Equatable {
         case note
         case isRecurring
         case createdByUsername
+        case linkedDebtId
+        case recurrenceFrequency
+        case endDate
+        case nextOccurrenceDate
+        case parentTransactionId
     }
 }

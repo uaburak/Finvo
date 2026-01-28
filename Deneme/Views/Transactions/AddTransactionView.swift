@@ -258,18 +258,116 @@ struct TransactionDetailsStep: View {
                 
                 Divider()
                 
-                // Note and Date
-                VStack(spacing: 16) {
-                    DatePicker("Tarih", selection: $viewModel.date, displayedComponents: [.date, .hourAndMinute])
-                    
-                    TextField("Not Ekle (Opsiyonel)", text: $viewModel.note)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
-                    
-                    Toggle("Tekrarlayan İşlem", isOn: $viewModel.isRecurring)
-                }
-                .padding()
+                    VStack(spacing: 16) {
+                        DatePicker("Tarih", selection: $viewModel.date, displayedComponents: [.date, .hourAndMinute])
+                        
+                        TextField("Not Ekle (Opsiyonel)", text: $viewModel.note)
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                        
+                        Toggle("Tekrarlayan İşlem (Abonelik)", isOn: $viewModel.isRecurring)
+                        
+                        if viewModel.isRecurring {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Tekrar Sıklığı")
+                                    Spacer()
+                                    Picker("Sıklık", selection: $viewModel.recurrenceFrequency) {
+                                        ForEach(RecurrenceFrequency.allCases, id: \.self) { freq in
+                                            Text(freq.displayName).tag(freq)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                }
+                                
+                                DatePicker("Bitiş Tarihi (Opsiyonel)", selection: Binding(
+                                    get: { viewModel.endDate ?? Date().addingTimeInterval(31536000) }, // Default +1 year visually but actually nil if not set? 
+                                    // Better approach: Use a toggle for "Has End Date" or just optional binding magic.
+                                    // For simplicity in SwiftUI forms, let's assume if they pick a date it's set.
+                                    // But to allow NIL, we often need a separate toggle. 
+                                    // Let's implement a clean "Set End Date" toggle wrapper.
+                                    set: { viewModel.endDate = $0 }
+                                ), displayedComponents: [.date])
+                                .opacity(viewModel.endDate == nil ? 0.5 : 1)
+                                .disabled(viewModel.endDate == nil)
+                                .overlay(alignment: .leading) {
+                                        Toggle("", isOn: Binding(
+                                            get: { viewModel.endDate != nil },
+                                            set: { if $0 { viewModel.endDate = Date().addingTimeInterval(2592000) } else { viewModel.endDate = nil } }
+                                        )).labelsHidden()
+                                }
+                                
+                                if viewModel.endDate == nil {
+                                    Text("Süresiz tekrarlanır")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+                            .transition(.scale.combined(with: .opacity))
+                        }
+                        
+                        Divider()
+                        
+                        Toggle("Borç Olarak İşle", isOn: $viewModel.isDebt)
+                            .tint(.orange)
+                        
+                        if viewModel.isDebt {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Borç Detayları")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                
+                                TextField("Borç Adı (Örn: Kredi)", text: $viewModel.debtName)
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(8)
+                                
+                                HStack {
+                                    Text("Tekrar Sıklığı")
+                                    Spacer()
+                                    Picker("Sıklık", selection: $viewModel.debtFrequency) {
+                                        ForEach(RecurrenceFrequency.allCases, id: \.self) { freq in
+                                            Text(freq.displayName).tag(freq)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                }
+                                
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading) {
+                                        Text("Toplam Taksit")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        TextField("12", text: $viewModel.totalInstallments)
+                                            .keyboardType(.numberPad)
+                                            .padding()
+                                            .background(Color(.systemGray6))
+                                            .cornerRadius(8)
+                                    }
+                                    
+                                    VStack(alignment: .leading) {
+                                        Text("Kaçıncı Taksit?")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        TextField("1", text: $viewModel.currentInstallment)
+                                            .keyboardType(.numberPad)
+                                            .padding()
+                                            .background(Color(.systemGray6))
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(12)
+                            .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .padding()
                 
                 if let error = viewModel.errorMessage {
                     Text(error)

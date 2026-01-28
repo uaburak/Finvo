@@ -28,6 +28,11 @@ class AnalyticsViewModel: ObservableObject {
     @Published var totalExpense: Double = 0
     @Published var balance: Double = 0
     
+    // Debt Stats
+    @Published var activeDebts: [Debt] = []
+    @Published var totalDebtRemaining: Double = 0
+    @Published var upcomingDebtPayment: Double = 0
+    
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var exportItem: ExportItem?
@@ -95,7 +100,9 @@ class AnalyticsViewModel: ObservableObject {
         
         do {
             self.allTransactions = try await firestoreService.fetchAllTransactions(walletId: walletId)
+            self.activeDebts = try await firestoreService.fetchActiveDebts(walletId: walletId)
             processData()
+            processDebts()
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription
@@ -180,6 +187,15 @@ class AnalyticsViewModel: ObservableObject {
             let percent = totalExpensesForMembers > 0 ? (sum / totalExpensesForMembers) * 100 : 0
             return MemberDouble(username: username, value: sum, color: color, percentage: percent)
         }.sorted(by: { $0.value > $1.value })
+    }
+
+    private func processDebts() {
+        self.totalDebtRemaining = activeDebts.reduce(0) { $0 + $1.remainingAmount }
+        
+        // Calculate next immediate payments (e.g. sum of all installment amounts for active debts)
+        // Or specific logic: Next payment needed within current month?
+        // Let's just sum installment amounts of active debts for now as "Monthly Debt Load"
+        self.upcomingDebtPayment = activeDebts.reduce(0) { $0 + $1.installmentAmount }
     }
     
     private func filterTransactionsByTimeRange(_ transactions: [Transaction], range: AnalyticsTimeRange, offset: Int) -> [Transaction] {

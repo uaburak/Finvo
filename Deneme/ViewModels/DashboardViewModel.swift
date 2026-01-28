@@ -8,6 +8,16 @@ class DashboardViewModel: ObservableObject {
     @Published var totalBalance: Double = 0
     @Published var monthlyIncome: Double = 0
     @Published var monthlyExpense: Double = 0
+    
+    // Debt Stats
+    @Published var activeDebts: [Debt] = []
+    @Published var totalDebtRemaining: Double = 0
+    @Published var upcomingDebtPayment: Double = 0
+    
+    // Limits & Goals
+    @Published var savingsGoal: Double?
+    @Published var monthlyLimit: Double?
+    
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
@@ -57,6 +67,8 @@ class DashboardViewModel: ObservableObject {
         self.totalBalance = 0
         self.monthlyIncome = 0
         self.monthlyExpense = 0
+        self.savingsGoal = wallet.savingsGoal
+        self.monthlyLimit = wallet.monthlyLimit
         
         do {
             // 1. Fetch recent transactions (Limit 5)
@@ -71,6 +83,11 @@ class DashboardViewModel: ObservableObject {
             let stats = try await firestoreService.fetchTransactionStats(walletId: walletId, from: startOfMonth)
             self.monthlyIncome = stats.income
             self.monthlyExpense = stats.expense
+            
+            // 3. Fetch Active Debts
+            self.activeDebts = try await firestoreService.fetchActiveDebts(walletId: walletId)
+            self.totalDebtRemaining = self.activeDebts.reduce(0) { $0 + $1.remainingAmount }
+            self.upcomingDebtPayment = self.activeDebts.reduce(0) { $0 + $1.installmentAmount }
             
             // Balance logic might need all-time calc, but for now lets simulate or use stats
             // In a real app, balance might be stored in Wallet document and updated via Cloud Functions.

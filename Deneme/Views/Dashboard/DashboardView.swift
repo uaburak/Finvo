@@ -11,188 +11,238 @@ struct DashboardView: View {
     @State private var showManageWallets = false
     @State private var showPermissionAlert = false
     @State private var showRequestSentAlert = false
-    @State private var loadedWalletId: String?
+    @State private var loadedWalletId: String? // Restored
+    @State private var showSpendingLimitSheet = false
+    @State private var showSavingsGoalSheet = false
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                // If no wallet is selected (and not loading), show empty state
-                if walletManager.selectedWallet == nil && !viewModel.isLoading {
-                    VStack(spacing: 20) {
-                        Spacer(minLength: 50)
-                        Image(systemName: "wallet.pass")
-                            .font(.system(size: 60))
-                            .foregroundColor(.blue)
-                        Text("Henüz bir cüzdanın yok.")
-                            .font(.title2)
-                        Button("Cüzdan Oluştur") {
-                            showCreateWallet = true
-                        }
-                        .buttonStyle(.borderedProminent)
+            mainContent
+                .toolbar { toolbarContent }
+                .overlay(alignment: .bottomTrailing) {
+                     // FAB Button
+                     if let wallet = walletManager.selectedWallet {
+                         Button {
+                             if let uid = authManager.user?.uid {
+                                 if wallet.canEdit(userId: uid) {
+                                     showAddTransaction = true
+                                 } else {
+                                     showPermissionAlert = true
+                                 }
+                             }
+                         } label: {
+                             Image(systemName: "plus")
+                                 .font(.title.weight(.semibold))
+                                 .foregroundColor(.white)
+                                 .frame(width: 56, height: 56)
+                                 .background(Color.blue)
+                                 .clipShape(Circle())
+                                 .shadow(radius: 4, x: 0, y: 4)
+                         }
+                         .padding()
+                     }
+                }
+                .sheet(isPresented: $showAddTransaction) {
+                     if let wallet = walletManager.selectedWallet, let walletId = wallet.id {
+                         AddTransactionView(walletId: walletId)
+                     } else {
+                        Text("Lütfen önce bir cüzdan oluşturun.")
+                     }
+                }
+                .alert("Yetkiniz Yok", isPresented: $showPermissionAlert) {
+                    Button("Yetki İste") {
+                         Task { await requestPermission() }
                     }
-                    .padding()
-                } else {
-                    // Context-Aware Content
+                    Button("İptal", role: .cancel) { }
+                } message: {
+                    Text("Bu cüzdanda işlem yapabilmek için 'Düzenleyici' yetkisine ihtiyacınız var. Cüzdan sahibinden yetki isteyebilirsiniz.")
+                }
+                .alert("İstek Gönderildi", isPresented: $showRequestSentAlert) {
+                    Button("Tamam", role: .cancel) { }
+                } message: {
+                    Text("Yetki isteğiniz cüzdan sahibine iletildi.")
+                }
+                .sheet(isPresented: $showCreateWallet) {
+                    CreateWalletView()
+                }
+                .sheet(isPresented: $showManageWallets) {
+                    NavigationStack {
+                        WalletManagementListView()
+                    }
+                }
+                .onAppear {
+                    if let uid = authManager.user?.uid {
+                        FirestoreService.shared.startListeningWallets(forUser: uid)
+                    }
+                    
+                    if let wallet = walletManager.selectedWallet, let walletId = wallet.id {
+                        Task {
+                            await DebtAutomationService.shared.checkAndProcessDueDebts(walletId: walletId)
+                            await RecurringTransactionService.shared.checkAndProcessRecurringTransactions(for: walletId)
+                        }
+                    }
+                    
                     if let wallet = walletManager.selectedWallet {
-                        switch wallet.context {
-                        case .budget:
-                            BudgetDashboardView(viewModel: viewModel)
-                        case .todo:
-                            // Should theoretically be handled by MainTabView but for consistency if loaded here:
-                             Text("To-Do Modu: Tab değişimini kontrol et.")
-                        case .savings:
-                            SavingsDashboardView(viewModel: viewModel)
-                        case .travel:
-                            TravelDashboardView(viewModel: viewModel)
+                        if loadedWalletId != wallet.id {
+                            loadedWalletId = wallet.id
+                            Task { await viewModel.refreshDashboard(for: wallet) }
                         }
                     }
                 }
-            }
-            .toolbar {
-                // Leading: Notifications
-                ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink(destination: NotificationsView()) {
-                        Image(systemName: "bell.badge")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.red, .primary)
-                    }
-                }
-                
-                // Principal: Wallet Selector
-                ToolbarItem(placement: .principal) {
-                    Menu {
-                        ForEach(walletManager.wallets) { wallet in
-                            Button {
-                                walletManager.selectWallet(wallet)
-                            } label: {
-                                HStack {
-                                    Text(wallet.name)
-                                    if walletManager.selectedWallet?.id == wallet.id {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Divider()
-                        
-                        Button {
-                            showCreateWallet = true
-                        } label: {
-                            Label("Yeni Cüzdan Oluştur", systemImage: "plus.circle")
-                        }
-                        
-                        Button {
-                            showManageWallets = true
-                        } label: {
-                            Label("Cüzdanları Yönet", systemImage: "list.bullet.rectangle.portrait")
-                        }
-                        
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(walletManager.selectedWallet?.name ?? "Cüzdan Seç")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Image(systemName: "chevron.down")
-                                .font(.caption)
-                                .bold()
-                                .foregroundColor(.secondary)
+                .onChange(of: walletManager.selectedWallet) { _, newWallet in
+                    if let wallet = newWallet, let walletId = wallet.id {
+                        loadedWalletId = walletId
+                        Task { 
+                            await viewModel.refreshDashboard(for: wallet) 
+                            await DebtAutomationService.shared.checkAndProcessDueDebts(walletId: walletId)
+                            await RecurringTransactionService.shared.checkAndProcessRecurringTransactions(for: walletId)
                         }
                     }
                 }
-                
-                // Trailing: Profile (Settings)
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(destination: SettingsView()) {
-                        if let photoURL = authManager.user?.photoURL {
-                            AsyncImage(url: photoURL) { image in
-                                image.resizable()
-                            } placeholder: {
-                                Image(systemName: "person.crop.circle")
-                                    .resizable()
-                                    .foregroundColor(.gray)
-                            }
-                            .frame(width: 32, height: 32)
-                            .clipShape(Circle())
-                        } else {
-                            Image(systemName: "person.crop.circle")
-                                .resizable()
-                                .frame(width: 32, height: 32)
-                                .foregroundColor(.gray)
+                .onChange(of: showAddTransaction) { _, isPresented in
+                    if !isPresented {
+                        if let wallet = walletManager.selectedWallet {
+                            Task { await viewModel.refreshDashboard(for: wallet) }
                         }
                     }
                 }
-            }
-            // Remove old overlay for FAB to avoid conflict or keep it? Keep it.
-            // But remove the CreateWallet from overlay logic if handled in toolbar? 
-            // The empty state handled create wallet, this toolbar handles switching.
-            .overlay(alignment: .bottomTrailing) {
-                // Show FAB only if wallet exists
-                if walletManager.selectedWallet != nil {
-                    Button {
-                        if let wallet = walletManager.selectedWallet, let uid = authManager.user?.uid {
-                            if wallet.canEdit(userId: uid) {
-                                showAddTransaction = true
-                            } else {
-                                showPermissionAlert = true
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.title.weight(.semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color.blue)
-                            .clipShape(Circle())
-                            .shadow(radius: 4, x: 0, y: 4)
+
+    // ... inside onReceive ...
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenWalletManagement"))) { _ in
+                    showManageWallets = true
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenSpendingLimit"))) { _ in
+                    showSpendingLimitSheet = true
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenSavingsGoal"))) { _ in
+                    showSavingsGoalSheet = true
+                }
+                .sheet(isPresented: $showSpendingLimitSheet) {
+                    WalletLimitSheet()
+                }
+                .sheet(isPresented: $showSavingsGoalSheet) {
+                    WalletGoalSheet()
+                }
+        }
+    }
+
+    @ViewBuilder
+    var mainContent: some View {
+        ScrollView {
+            if walletManager.selectedWallet == nil && !viewModel.isLoading {
+                VStack(spacing: 20) {
+                    Spacer(minLength: 50)
+                    Image(systemName: "wallet.pass")
+                        .font(.system(size: 60))
+                        .foregroundColor(.blue)
+                    Text("Henüz bir cüzdanın yok.")
+                        .font(.title2)
+                    Button("Cüzdan Oluştur") {
+                        showCreateWallet = true
                     }
-                    .padding()
+                    .buttonStyle(.borderedProminent)
                 }
-            }
-            .sheet(isPresented: $showAddTransaction) {
-                 if let wallet = walletManager.selectedWallet, let walletId = wallet.id {
-                     AddTransactionView(walletId: walletId)
-                 } else {
-                    Text("Lütfen önce bir cüzdan oluşturun.")
-                 }
-            }
-            .alert("Yetkiniz Yok", isPresented: $showPermissionAlert) {
-                Button("Yetki İste") {
-                     Task { await requestPermission() }
-                }
-                Button("İptal", role: .cancel) { }
-            } message: {
-                Text("Bu cüzdanda işlem yapabilmek için 'Düzenleyici' yetkisine ihtiyacınız var. Cüzdan sahibinden yetki isteyebilirsiniz.")
-            }
-            .alert("İstek Gönderildi", isPresented: $showRequestSentAlert) {
-                Button("Tamam", role: .cancel) { }
-            } message: {
-                Text("Yetki isteğiniz cüzdan sahibine iletildi.")
-            }
-            .sheet(isPresented: $showCreateWallet) {
-                CreateWalletView()
-            }
-            .sheet(isPresented: $showManageWallets) {
-                NavigationStack {
-                    WalletManagementListView()
-                }
-            }
-            .onAppear {
-                if let uid = authManager.user?.uid {
-                    FirestoreService.shared.startListeningWallets(forUser: uid)
-                }
-                // Initial load only if needed
+                .padding()
+            } else {
                 if let wallet = walletManager.selectedWallet {
-                    if loadedWalletId != wallet.id {
-                        loadedWalletId = wallet.id
-                        Task { await viewModel.refreshDashboard(for: wallet) }
+                    switch wallet.context {
+                    case .budget:
+                        BudgetDashboardView(viewModel: viewModel)
+                    case .todo:
+                         Text("To-Do Modu: Tab değişimini kontrol et.")
+                    case .savings:
+                        SavingsDashboardView(viewModel: viewModel)
+                    case .travel:
+                        TravelDashboardView(viewModel: viewModel)
                     }
                 }
             }
-            .onChange(of: walletManager.selectedWallet) { _, newWallet in
-                if let wallet = newWallet {
-                    loadedWalletId = wallet.id
-                    Task { await viewModel.refreshDashboard(for: wallet) }
+        }
+        .refreshable {
+            if let wallet = walletManager.selectedWallet {
+                await viewModel.refreshDashboard(for: wallet)
+                // Also refresh automation services
+                if let walletId = wallet.id {
+                    await DebtAutomationService.shared.checkAndProcessDueDebts(walletId: walletId)
+                    await RecurringTransactionService.shared.checkAndProcessRecurringTransactions(for: walletId)
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    @ToolbarContentBuilder
+    var toolbarContent: some ToolbarContent {
+        // Leading: Notifications
+        ToolbarItem(placement: .topBarLeading) {
+            NavigationLink(destination: NotificationsView()) {
+                Image(systemName: "bell.badge")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.red, .primary)
+            }
+        }
+        
+        // Principal: Wallet Selector
+        ToolbarItem(placement: .principal) {
+            Menu {
+                ForEach(walletManager.wallets) { wallet in
+                    Button {
+                        walletManager.selectWallet(wallet)
+                    } label: {
+                        HStack {
+                            Text(wallet.name)
+                            if walletManager.selectedWallet?.id == wallet.id {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+                
+                Divider()
+                
+                Button {
+                    showCreateWallet = true
+                } label: {
+                    Label("Yeni Cüzdan Oluştur", systemImage: "plus.circle")
+                }
+                
+                Button {
+                    showManageWallets = true
+                } label: {
+                    Label("Cüzdanları Yönet", systemImage: "list.bullet.rectangle.portrait")
+                }
+                
+            } label: {
+                HStack(spacing: 4) {
+                    Text(walletManager.selectedWallet?.name ?? "Cüzdan Seç")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Image(systemName: "chevron.down")
+                        .font(.caption)
+                        .bold()
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        
+        // Trailing: Profile (Settings)
+        ToolbarItem(placement: .topBarTrailing) {
+            NavigationLink(destination: SettingsView()) {
+                if let photoURL = authManager.user?.photoURL {
+                    AsyncImage(url: photoURL) { image in
+                        image.resizable()
+                    } placeholder: {
+                        Image(systemName: "person.crop.circle")
+                            .resizable()
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+                } else {
+                    Image(systemName: "person.crop.circle")
+                        .resizable()
+                        .frame(width: 32, height: 32)
+                        .foregroundColor(.gray)
                 }
             }
         }

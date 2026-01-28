@@ -92,6 +92,35 @@ struct TransactionDetailView: View {
                             .cornerRadius(12)
                     }
                     .padding(.horizontal)
+                    .padding(.horizontal)
+                    
+                    if transaction.isRecurring {
+                        Button {
+                            // Stop Recurrence Action
+                            Task {
+                                var updatedTransaction = transaction
+                                updatedTransaction.isRecurring = false
+                                updatedTransaction.nextOccurrenceDate = nil
+                                updatedTransaction.endDate = Date() // Mark ended as of now
+                                
+                                do {
+                                    try await FirestoreService.shared.updateTransaction(walletId: wallet.id ?? "", transaction: updatedTransaction)
+                                    dismiss()
+                                } catch {
+                                    print("Error stopping recurrence: \(error)")
+                                }
+                            }
+                        } label: {
+                            Label("Tekrarı Durdur", systemImage: "clock.arrow.circlepath")
+                                .font(.headline)
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
+                    }
                 }
             }
         }
