@@ -13,8 +13,8 @@ struct DashboardSmartStack: View {
             let frameHeight = geo.size.height
             
             ZStack {
-                // Main Container: Stack + Indicators side by side
-                HStack(spacing: 8) {
+                // Main Container: Stack with Overlay Indicators
+                ZStack(alignment: .trailing) {
                     
                     // Card Stack Container
                     ZStack {
@@ -68,6 +68,7 @@ struct DashboardSmartStack: View {
                                 }
                                 
                                 if finalOffset != 0 {
+                                    triggerHaptic() // Feedback
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                         // Reset
                                         selectedIndex = nextIndex
@@ -77,7 +78,7 @@ struct DashboardSmartStack: View {
                             }
                     )
                     
-                    // Indicators (Side by side in HStack)
+                    // Indicators (Floating on right)
                     VStack(spacing: 6) {
                         ForEach(0..<2) { index in
                             Circle()
@@ -86,6 +87,7 @@ struct DashboardSmartStack: View {
                                 .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                         }
                     }
+                    .offset(x: 12) // Push slightly into the gutter/margin
                 }
             }
         }
@@ -98,6 +100,11 @@ struct DashboardSmartStack: View {
         } else {
             SavingsGoalCard(viewModel: viewModel)
         }
+    }
+    
+    func triggerHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
     }
     
     func offsetFor(index: Int, frameHeight: CGFloat) -> CGFloat {

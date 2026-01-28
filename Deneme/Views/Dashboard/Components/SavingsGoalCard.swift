@@ -12,8 +12,10 @@ struct SavingsGoalCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
+        ZStack(alignment: .topTrailing) {
+            // Main Content
+            VStack(alignment: .leading, spacing: 16) {
+                // Header & Goal
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Birikim Hedefi")
                         .font(.caption)
@@ -21,7 +23,7 @@ struct SavingsGoalCard: View {
                     
                     if let goal = viewModel.savingsGoal, goal > 0 {
                         Text(viewModel.totalBalance.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
-                            .font(.system(size: 32, weight: .bold))
+                            .font(.system(size: 34, weight: .bold)) // Slightly larger matches AssetCard
                             .foregroundColor(.white)
                             .contentTransition(.numericText())
                             .animation(.snappy, value: viewModel.totalBalance)
@@ -37,60 +39,59 @@ struct SavingsGoalCard: View {
                     }
                 }
                 
-                Spacer()
-                
-                // Settings Menu (Same as Asset Card)
-                Menu {
-                    Button {
-                        NotificationCenter.default.post(name: NSNotification.Name("OpenSavingsGoal"), object: nil)
-                    } label: {
-                        Label("Hedefi Düzenle", systemImage: "pencil")
-                    }
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .foregroundColor(.white)
-                        .font(.title2)
-                        .padding(8)
-                }
-            }
-            
-            // Progress Bar
-            if let goal = viewModel.savingsGoal, goal > 0 {
-                VStack(spacing: 8) {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            // Background Track
-                            Capsule()
-                                .fill(Color.black.opacity(0.2))
-                                .frame(height: 12)
-                            
-                            // Progress Fill
-                            Capsule()
-                                .fill(Color.white)
-                                .frame(width: geometry.size.width * progress, height: 12)
-                                .animation(.spring, value: progress)
+                // Progress Bar
+                if let goal = viewModel.savingsGoal, goal > 0 {
+                    VStack(spacing: 8) {
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                // Background Track
+                                Capsule()
+                                    .fill(Color.black.opacity(0.2))
+                                    .frame(height: 12)
+                                
+                                // Progress Fill
+                                Capsule()
+                                    .fill(Color.white)
+                                    .frame(width: geometry.size.width * progress, height: 12)
+                                    .animation(.spring, value: progress)
+                            }
+                        }
+                        .frame(height: 12)
+                        .padding(.top, 8)
+                        
+                        HStack {
+                            Text("%\(Int(progress * 100)) Tamamlandı")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.9))
+                            Spacer()
+                            Text("Kalan: \((goal - viewModel.totalBalance).formatted(.currency(code: "TRY").precision(.fractionLength(0))))")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.9))
                         }
                     }
-                    .frame(height: 12)
-                    
-                    HStack {
-                        Text("%\(Int(progress * 100)) Tamamlandı")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.9))
-                        Spacer()
-                        Text("Kalan: \((goal - viewModel.totalBalance).formatted(.currency(code: "TRY").precision(.fractionLength(0))))")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.9))
-                    }
+                } else {
+                    Text("Birikim hedefi belirlemek için ayarlara tıklayın.")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
                 }
-            } else {
-                Text("Birikim hedefi belirlemek için ayarlara tıklayın.")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            
+            // Settings Menu (Top Right)
+            Menu {
+                Button {
+                    NotificationCenter.default.post(name: NSNotification.Name("OpenSavingsGoal"), object: nil)
+                } label: {
+                    Label("Hedefi Düzenle", systemImage: "pencil")
+                }
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .foregroundColor(.white)
+                    .font(.title3)
+                    .padding(16)
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.green)
         .cornerRadius(20)
     }
