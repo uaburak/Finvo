@@ -14,6 +14,7 @@ struct DashboardView: View {
     @State private var loadedWalletId: String? // Restored
     @State private var showSpendingLimitSheet = false
     @State private var showSavingsGoalSheet = false
+    @State private var showSettings = false // For profile navigation
     
     var body: some View {
         NavigationStack {
@@ -169,6 +170,9 @@ struct DashboardView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showSettings) {
+            SettingsView()
+        }
     }
     
     @ToolbarContentBuilder
@@ -225,28 +229,15 @@ struct DashboardView: View {
             }
         }
         
-        // Trailing: Profile (Settings)
+        // Trailing: Profile
         ToolbarItem(placement: .topBarTrailing) {
-            NavigationLink(destination: SettingsView()) {
-                if let photoURL = authManager.user?.photoURL {
-                    AsyncImage(url: photoURL) { image in
-                        image.resizable()
-                    } placeholder: {
-                        Image(systemName: "person.crop.circle")
-                            .resizable()
-                            .foregroundColor(.gray)
-                    }
-                    .frame(width: 32, height: 32)
-                    .clipShape(Circle())
-                } else {
-                    Image(systemName: "person.crop.circle")
-                        .resizable()
-                        .frame(width: 32, height: 32)
-                        .foregroundColor(.gray)
+            ProfileImageView(photoURL: authManager.user?.photoURL)
+                .onTapGesture {
+                    showSettings = true
                 }
-            }
         }
     }
+    
     func requestPermission() async {
         guard let wallet = walletManager.selectedWallet, 
               let user = AuthenticationManager.shared.currentUserProfile ?? 
@@ -260,6 +251,48 @@ struct DashboardView: View {
             showRequestSentAlert = true
         } catch {
             print("Yetki isteği gönderilemedi: \(error)")
+        }
+    }
+    
+    // Extracted Profile Image View for cleaner code and guaranteed layout
+    struct ProfileImageView: View {
+        let photoURL: URL?
+        
+        var body: some View {
+            ZStack {
+                if let photoURL = photoURL {
+                    AsyncImage(url: photoURL) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                    } placeholder: {
+                        Circle()
+                            .fill(Color(.systemGray5))
+                            .frame(width: 36, height: 36)
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.gray)
+                            )
+                    }
+                } else {
+                    Circle()
+                        .fill(Color(.systemGray5))
+                        .frame(width: 36, height: 36)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.gray)
+                        )
+                }
+            }
+            // Strict Frame Enforcer
+            .frame(width: 36, height: 36)
+            .clipShape(Circle())
+            // Remove any potential button border style from navigation links
+            .contentShape(Circle())
         }
     }
 }
