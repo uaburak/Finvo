@@ -14,7 +14,7 @@ struct SavingsGoalCard: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Main Content
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) { // Reduced spacing
                 // Header & Goal
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Birikim Hedefi")
@@ -23,17 +23,15 @@ struct SavingsGoalCard: View {
                     
                     if let goal = viewModel.savingsGoal, goal > 0 {
                         Text(viewModel.totalBalance.formatted(.currency(code: "TRY").precision(.fractionLength(0))))
-                            .font(.system(size: 34, weight: .bold)) // Slightly larger matches AssetCard
+                            .font(.system(size: 38, weight: .bold)) // Increased size
                             .foregroundColor(.white)
                             .contentTransition(.numericText())
                             .animation(.snappy, value: viewModel.totalBalance)
-                        
-                        Text("/ \(goal.formatted(.currency(code: "TRY").precision(.fractionLength(0))))")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.8))
+                            .minimumScaleFactor(0.7)
+                        // Removed explicit goal text as requested
                     } else {
                         Text("Hedef Belirlenmedi")
-                            .font(.title2)
+                            .font(.title3)
                             .bold()
                             .foregroundColor(.white)
                     }
@@ -47,17 +45,17 @@ struct SavingsGoalCard: View {
                                 // Background Track
                                 Capsule()
                                     .fill(Color.black.opacity(0.2))
-                                    .frame(height: 12)
+                                    .frame(height: 10) // Reduced height
                                 
                                 // Progress Fill
                                 Capsule()
                                     .fill(Color.white)
-                                    .frame(width: geometry.size.width * progress, height: 12)
+                                    .frame(width: geometry.size.width * progress, height: 10) // Reduced height
                                     .animation(.spring, value: progress)
                             }
                         }
-                        .frame(height: 12)
-                        .padding(.top, 8)
+                        .frame(height: 10) // Reduced height
+                        .padding(.top, 4) // Reduced padding
                         
                         HStack {
                             Text("%\(Int(progress * 100)) Tamamlandı")
@@ -75,15 +73,29 @@ struct SavingsGoalCard: View {
                         .foregroundColor(.white.opacity(0.8))
                 }
             }
-            .padding()
+            .padding(16) // Increased padding
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             
             // Settings Menu (Top Right)
             Menu {
                 Button {
+                    NotificationCenter.default.post(name: NSNotification.Name("OpenSpendingLimit"), object: nil)
+                } label: {
+                    Label("Harcama Limiti belirle", systemImage: "chart.line.downtrend.xyaxis")
+                }
+                
+                Button {
                     NotificationCenter.default.post(name: NSNotification.Name("OpenSavingsGoal"), object: nil)
                 } label: {
-                    Label("Hedefi Düzenle", systemImage: "pencil")
+                    Label("Birikim Hedefi belirle", systemImage: "target")
+                }
+                
+                Divider()
+                
+                Button {
+                    NotificationCenter.default.post(name: NSNotification.Name("OpenWalletManagement"), object: nil)
+                } label: {
+                    Label("Cüzdanı Yönet", systemImage: "gear")
                 }
             } label: {
                 Image(systemName: "gearshape.fill")
@@ -93,6 +105,6 @@ struct SavingsGoalCard: View {
             }
         }
         .background(Color.green)
-        .cornerRadius(20)
+        .cornerRadius(25)
     }
 }

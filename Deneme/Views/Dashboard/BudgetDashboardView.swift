@@ -10,7 +10,7 @@ struct BudgetDashboardView: View {
             
             // 1. Asset & Savings Summary Slider (Vertical Smart Stack Style)
             DashboardSmartStack(viewModel: viewModel, selectedIndex: $selectedWidgetIndex)
-                .frame(height: 180)
+                .frame(height: 140)
                 .padding(.horizontal) // Add horizontal padding for the container
 
             
