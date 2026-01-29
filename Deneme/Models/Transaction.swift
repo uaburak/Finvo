@@ -43,3 +43,9 @@ struct Transaction: Identifiable, Codable, Equatable {
         case parentTransactionId
     }
 }
+
+extension Transaction {
+    var formattedAmount: String {
+        return amount.formatted(.currency(code: currency).precision(.fractionLength(0)))
+    }
+}
