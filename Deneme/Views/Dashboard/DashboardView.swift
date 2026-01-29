@@ -14,6 +14,7 @@ struct DashboardView: View {
     @State private var loadedWalletId: String? // Restored
     @State private var showSpendingLimitSheet = false
     @State private var showSavingsGoalSheet = false
+    @State private var showSavingsWithdrawSheet = false // New
     @State private var showSettings = false // For profile navigation
     
     var body: some View {
@@ -123,6 +124,14 @@ struct DashboardView: View {
                 }
                 .sheet(isPresented: $showSavingsGoalSheet) {
                     WalletGoalSheet()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenSavingsWithdraw"))) { _ in
+                    showSavingsWithdrawSheet = true
+                }
+                .sheet(isPresented: $showSavingsWithdrawSheet) {
+                    if let wallet = walletManager.selectedWallet, let walletId = wallet.id {
+                        SavingsWithdrawView(walletId: walletId, maxWithdrawalAmount: viewModel.savingsBalance)
+                    }
                 }
         }
     }

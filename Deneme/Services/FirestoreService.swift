@@ -219,6 +219,63 @@ class FirestoreService: ObservableObject {
         return (income, expense)
     }
     
+    // Calcluate Savings Balance by fetching all relevant transactions and filtering client-side
+    // This aligns with the optimistic logic and supports "Contains" matching.
+    // Enhanced signature to return debug info if needed (tuple)
+    func fetchSavingsBalance(walletId: String) async throws -> (balance: Double, debugInfo: String) {
+        let walletRef = db.collection("wallets").document(walletId)
+        
+        // Fetch all transactions (optimized by ordering if needed, but for MVP just get all)
+        let snapshot = try await walletRef.collection("transactions").getDocuments()
+        
+        var balance: Double = 0
+        var processedCount = 0
+        var matchCount = 0
+        var errorCount = 0
+        
+        var expCount = 0
+        var incCount = 0
+        var rawSum: Double = 0
+        
+        for doc in snapshot.documents {
+            do {
+                let transaction = try doc.data(as: Transaction.self)
+                processedCount += 1
+                
+                // Logic:
+                // + Expense to "Birikim" or "Yatırım" (Money into Savings)
+                // - Income ONLY from "Birikim Bozdurma" (Money withdrawn from Savings)
+                // We must NOT subtract generic Investment Income (Dividends/Profit) as that creates a massive deficit.
+                
+                if transaction.type == .expense {
+                    // Check Main Category for "Birikim" or "Yatırım"
+                    if transaction.categoryName.localizedCaseInsensitiveContains("Birikim") || 
+                       transaction.categoryName.localizedCaseInsensitiveContains("Yatırım") {
+                        matchCount += 1
+                        balance += transaction.amount
+                        rawSum += transaction.amount
+                        expCount += 1
+                    }
+                } else if transaction.type == .income {
+                    // Check Sub Category for "Birikim" or "Bozdurma" specifically
+                    // Or if user named a main category "Birikim Geliri" etc.
+                    if transaction.subCategoryName.localizedCaseInsensitiveContains("Birikim") || 
+                       transaction.subCategoryName.localizedCaseInsensitiveContains("Bozdurma") {
+                        matchCount += 1
+                        balance -= transaction.amount
+                        rawSum -= transaction.amount
+                        incCount += 1
+                    }
+                }
+            } catch {
+                errorCount += 1
+                // print("Decoding error for doc \(doc.documentID): \(error)")
+            }
+        }
+        
+        return (max(0, balance), "M:\(matchCount) | E:\(expCount) I:\(incCount) | Sum:\(Int(rawSum)) | Err:\(errorCount)")
+    }
+    
     // MARK: - Debt Operations
     
     func addDebt(walletId: String, debt: Debt) async throws -> String {

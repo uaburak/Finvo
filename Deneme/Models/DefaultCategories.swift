@@ -29,7 +29,8 @@ struct DefaultCategories {
                 SubCategory(name: "Mevduat Faizi", icon: "percent", colorHex: "#63E6E2"),
                 SubCategory(name: "Fon Getirisi", icon: "pi.circle.fill", colorHex: "#30B0C7"),
                 SubCategory(name: "Döviz Kur Farkı", icon: "eurosign.circle.fill", colorHex: "#59ADC4"),
-                SubCategory(name: "Altın / Değerli Maden", icon: "target", colorHex: "#FFCC00")
+                SubCategory(name: "Altın / Değerli Maden", icon: "target", colorHex: "#FFCC00"),
+                SubCategory(name: "Birikim Bozdurma", icon: "arrow.counterclockwise.circle.fill", colorHex: "#34C759") // New
             ]
         ),
         Category(
@@ -247,6 +248,21 @@ struct DefaultCategories {
                 SubCategory(name: "Bakım / Kuaför", icon: "comb.fill", colorHex: "#5AC8FA")
             ]
         ),
+        
+        Category(
+            name: "Birikim & Yatırım",
+            icon: "leaf.fill",
+            colorHex: "#34C759", // Yeşil
+            type: .expense,
+            subCategories: [
+                SubCategory(name: "Altın / Döviz Alımı", icon: "banknote.fill", colorHex: "#FFD60A"),
+                SubCategory(name: "Hisse Senedi Alımı", icon: "chart.bar.fill", colorHex: "#40C8E0"),
+                SubCategory(name: "Fon Alımı", icon: "pi.circle.fill", colorHex: "#30B0C7"),
+                SubCategory(name: "Bireysel Emeklilik (BES)", icon: "shield.fill", colorHex: "#5856D6"),
+                SubCategory(name: "Kenara Atılan (Nakit)", icon: "archivebox.fill", colorHex: "#AC8E68")
+            ]
+        ),
+        
         Category(
             name: "Borç & Finansal Ödemeler",
             icon: "creditcard.fill",

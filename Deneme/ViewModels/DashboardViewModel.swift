@@ -14,12 +14,15 @@ class DashboardViewModel: ObservableObject {
     @Published var totalDebtRemaining: Double = 0
     @Published var upcomingDebtPayment: Double = 0
     
+    @Published var savingsBalance: Double = 0 // Tracks accumulated savings
+    
     // Limits & Goals
     @Published var savingsGoal: Double?
     @Published var monthlyLimit: Double?
     
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var debugInfo: String = "Yükleniyor..." // Debug
     
     private let firestoreService = FirestoreService.shared
     private var cancellables = Set<AnyCancellable>()
@@ -47,8 +50,18 @@ class DashboardViewModel: ObservableObject {
         // For MVP simplicity, assume "Add" happens mostly for "Now", so yes.
         if transaction.type == .income {
             self.monthlyIncome += transaction.amount
+            // Optimistic update for savings withdrawal
+            if transaction.subCategoryName.localizedCaseInsensitiveContains("Birikim") || 
+               transaction.subCategoryName.localizedCaseInsensitiveContains("Bozdurma") {
+                self.savingsBalance = max(0, self.savingsBalance - transaction.amount)
+            }
         } else {
             self.monthlyExpense += transaction.amount
+            // Optimistic update for savings deposit
+            if transaction.categoryName.localizedCaseInsensitiveContains("Birikim") || 
+               transaction.categoryName.localizedCaseInsensitiveContains("Yatırım") {
+                self.savingsBalance += transaction.amount
+            }
         }
         
         // 3. Update Balance
@@ -76,8 +89,38 @@ class DashboardViewModel: ObservableObject {
             self.recentTransactions = result.transactions
             
             // 2. Fetch monthly stats (From start of current month)
+            // Note: For Savings Balance, we ideally need ALL TIME savings. 
+            // Or if we track monthly flow, it's monthly.
+            // Requirement says "Savings Account". Usually an account balance is all time.
+            // Let's check fetchTransactionStats. It returns income/expense sum.
+            // To get specific category sum, we might need a new query or filter fetched transactions.
+            // Since we only fetch 5 recent transactions here, we can't calculate total savings from them.
+            // For MVP/Prototype without backend aggregation, we have to fetch ALL transactions or use a dedicated collection method.
+            // Assuming for now we calculate from "stats" isn't enough because stats are aggregate.
+            // Let's add a specialized fetch for savings sum.
+            // "firestoreService.fetchTotalSavings(walletId: walletId)" -> We might need to implement this or simulate.
+            // Let's simulate by fetching all transactions for now (WARNING: Costly in prod) or better, 
+            // just depend on a `wallet.currentSavings` field if it existed. 
+            // Since we can't change the backend easily, let's fetch transactions (limit 100 for now?) or use a specific query.
+            // Let's look at `FirestoreService`.
+            
+            // Re-evaluating: The user wants "Asset = Income - Expense". "Savings = Savings Expenses".
+            // If we only have monthly stats, we can't show total asset accurately either if it's all time.
+            // Assuming the `monthlyIncome` / `monthlyExpense` variables are actually used for "This Month" view.
+            
+            // Let's add `savingsBalance` calculation based on a new Service call or logic.
+            // I'll assume I can calculate it from a new fetch or existing.
+            // Attempting to calculate savings from recent is wrong.
+            // I will add a helper to fetch accumulated savings based on category name "Birikim".
+            
             let calendar = Calendar.current
             let components = calendar.dateComponents([.year, .month], from: Date())
+            
+            // Calculate Savings Balance with new robust fetch
+            let savingsResult = try await firestoreService.fetchSavingsBalance(walletId: walletId)
+            self.savingsBalance = savingsResult.balance
+            self.debugInfo = savingsResult.debugInfo // Show on UI
+            
             let startOfMonth = calendar.date(from: components) ?? Date()
             
             let stats = try await firestoreService.fetchTransactionStats(walletId: walletId, from: startOfMonth)
@@ -89,15 +132,11 @@ class DashboardViewModel: ObservableObject {
             self.totalDebtRemaining = self.activeDebts.reduce(0) { $0 + $1.remainingAmount }
             self.upcomingDebtPayment = self.activeDebts.reduce(0) { $0 + $1.installmentAmount }
             
-            // Balance logic might need all-time calc, but for now lets simulate or use stats
-            // In a real app, balance might be stored in Wallet document and updated via Cloud Functions.
-            // For MVP, we might approximate or fetch all (costly!).
-            // User requested "Verified Data Cost Optimized".
-            // Let's assume Balance is Income - Expense of *this month* for the dashboard view for now,
-            // OR ideally, we should update the 'Wallet' document with a 'currentBalance' field whenever a transaction is added.
-            // Since we didn't add 'balance' to Wallet model in Step 1, let's keep it simple:
-            // Calculate balance based on visible period or just Show Income vs Expense for now.
-            // Let's just calculate net for this month.
+            // Balance logic: User said "Asset" shouldn't show savings.
+            // If Savings are recorded as Expenses, then Net (Income - Expense) already excludes them.
+            // So `totalBalance` = `monthlyIncome` - `monthlyExpense` produces what they asked for (Liquid).
+            // (Assuming `monthlyExpense` includes the savings transfer).
+            // Yes, if we record it as expense, it is included in `stats.expense`.
             self.totalBalance = self.monthlyIncome - self.monthlyExpense
             
             isLoading = false
