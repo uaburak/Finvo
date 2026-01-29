@@ -29,6 +29,14 @@ struct AnalyticsView: View {
                             .frame(height: 140)
                             .padding(.horizontal)
                         
+                        // New: Persona Slider (Achievements)
+                        // Only show if we have members (or even for single user? Gamification is fun for single too!)
+                        // If single user, they get all badges they earned.
+                        if !viewModel.memberPersonas.isEmpty {
+                            PersonaSliderView(viewModel: viewModel)
+                                .padding(.top, -10) // Tweak spacing
+                        }
+                        
                         // 3. Bento Grid Layout
                         VStack(spacing: 12) {
                             // Row 1: Trend (Full Width)
@@ -58,9 +66,6 @@ struct AnalyticsView: View {
                                 VStack(spacing: 20) {
                                     // 1. Total Spending Comparison
                                     MemberComparisonBento(viewModel: viewModel)
-                                    
-                                    // 2. Persona Cards (Fun Titles)
-                                    PersonaSliderView(viewModel: viewModel)
                                     
                                     // 3. Detailed Category Comparisons (Link)
                                     NavigationLink(destination: CategoryComparisonDetailView(viewModel: viewModel)) {

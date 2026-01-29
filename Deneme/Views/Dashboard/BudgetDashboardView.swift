@@ -13,11 +13,15 @@ struct BudgetDashboardView: View {
     
     var body: some View {
         VStack(spacing: 12) { // Tighter spacing for bento grid feel
+
+            
+
             
             // 1. Asset & Savings Summary Slider (Vertical Smart Stack Style)
             DashboardSmartStack(viewModel: viewModel, selectedIndex: $selectedWidgetIndex)
                 .frame(height: 140)
                 .padding(.horizontal) // Add horizontal padding for the container
+                .padding(.top, 10) // Restore positive spacing
 
             
             // 1.5. Income & Expense Quick Summary

@@ -178,6 +178,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .scrollBounceBehavior(.always, axes: .vertical)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showSettings) {
             SettingsView()

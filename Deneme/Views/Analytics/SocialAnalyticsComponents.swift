@@ -5,15 +5,17 @@ struct PersonaSliderView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Ekibin Rolleri", systemImage: "sparkles")
+            Label("Başarı Rozetleri", systemImage: "trophy.fill")
                 .font(.headline)
-                .foregroundStyle(.indigo)
+                .foregroundStyle(.primary)
                 .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(viewModel.memberPersonas) { persona in
-                        PersonaCardView(persona: persona)
+                        NavigationLink(destination: PersonaDetailView(persona: persona, viewModel: viewModel)) {
+                            PersonaCardView(persona: persona)
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -23,43 +25,42 @@ struct PersonaSliderView: View {
     }
 }
 
+// Minimal Redesign
+// Minimal Redesign (Matching Tip Card Style)
+// Minimal Redesign (Centered)
 struct PersonaCardView: View {
-    let persona: AnalyticsViewModel.MemberPersona
+    let persona: MemberPersona
     
     var body: some View {
-        VStack(spacing: 12) {
-            // Minimal Avatar
-            Circle()
-                .fill(persona.color.opacity(0.15))
-                .frame(width: 50, height: 50)
-                .overlay(
-                    Image(systemName: persona.icon)
-                        .font(.system(size: 24))
-                        .foregroundStyle(persona.color)
-                )
-                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 2)
+        VStack(spacing: 8) {
+            Spacer()
             
+            // Icon
+            Image(systemName: persona.icon)
+                .font(.system(size: 32)) // Prominent Icon
+                .foregroundColor(persona.badgeColor)
+            
+            // Hero Content
             VStack(spacing: 4) {
-                Text(persona.username)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-                
-                // Fun Badge
                 Text(persona.title)
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(persona.color.opacity(0.1))
-                    .foregroundStyle(persona.color)
-                    .clipShape(Capsule())
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                
+                Text(persona.username) // Real Name
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
+            
+            Spacer()
         }
-        .padding(16)
-        .frame(width: 110, height: 130)
+        .padding(12)
+        .frame(width: 140, height: 140)
         .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(16)
-        // No heavy shadows, just clean
+        .cornerRadius(24)
     }
 }

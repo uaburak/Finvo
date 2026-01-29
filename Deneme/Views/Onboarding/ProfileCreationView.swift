@@ -37,7 +37,7 @@ struct ProfileCreationView: View {
             .padding(.horizontal)
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Görünen İsim (Opsiyonel)")
+                Text("İsim Soyisim")
                     .font(.headline)
                 
                 TextField("Ad Soyad", text: $viewModel.displayName)
