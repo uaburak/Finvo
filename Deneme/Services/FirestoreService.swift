@@ -169,7 +169,36 @@ class FirestoreService: ObservableObject {
         guard let transactionId = transaction.id else { return }
         let walletRef = db.collection("wallets").document(walletId)
         let transactionRef = walletRef.collection("transactions").document(transactionId)
+        
+        // 2. Update Transaction
         try transactionRef.setData(from: transaction, merge: true)
+        
+        // 3. Sync with Linked Debt if applicable
+        if let debtId = transaction.linkedDebtId {
+             // Fetch Debt
+             let debtRef = walletRef.collection("debts").document(debtId)
+             var debt = try await debtRef.getDocument(as: Debt.self)
+             
+             // Check if amount changed
+             if transaction.amount != debt.installmentAmount {
+                 // User corrected the installment amount.
+                 // We should update the Debt definition to match this correction.
+                 // Assumption: The user wants to fix the ENTIRE debt plan based on this correction.
+                 
+                 debt.installmentAmount = transaction.amount
+                 debt.totalAmount = Double(debt.totalInstallments) * debt.installmentAmount
+                 
+                 // Recalculate remaining amount:
+                 // Remaining = (Total - PaidCount) * NewInstallment
+                 // Note: We assume 'paidInstallments' logic is handled elsewhere (e.g., creating this transaction incremented it).
+                 // So remaining is simply the rest.
+                 let remainingCount = debt.totalInstallments - debt.paidInstallments
+                 debt.remainingAmount = Double(remainingCount) * debt.installmentAmount
+                 
+                 // Save Debt Update
+                 try debtRef.setData(from: debt, merge: true)
+             }
+        }
     }
     
     // Legacy fetch (kept for reference or specific use cases)

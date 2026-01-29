@@ -22,6 +22,8 @@ class AnalyticsViewModel: ObservableObject {
     @Published var chartData: [CategoryDouble] = [] // For Pie/Donut Chart (Categories)
     @Published var trendData: [DateValue] = []      // For Line/Bar Chart (Trend)
     @Published var memberData: [MemberDouble] = []  // For Member Comparison
+    @Published var memberPersonas: [MemberPersona] = [] // NEW: Social Personas
+    @Published var categoryMemberComparison: [CategoryMemberBreakdown] = [] // NEW: Detailed Comparison
     
     // Summary Stats
     @Published var totalIncome: Double = 0
@@ -187,14 +189,140 @@ class AnalyticsViewModel: ObservableObject {
             let percent = totalExpensesForMembers > 0 ? (sum / totalExpensesForMembers) * 100 : 0
             return MemberDouble(username: username, value: sum, color: color, percentage: percent)
         }.sorted(by: { $0.value > $1.value })
+        
+        // 7. Calculate Personas
+        calculatePersonas(groupedByUser: groupedByUser, totalExpense: totalExpensesForMembers)
+        
+        // 8. Calculate Category Matrix
+        calculateCategoryMemberMatrix(transactions: expensesOnly)
+    }
+    
+    private func calculatePersonas(groupedByUser: [String: [Transaction]], totalExpense: Double) {
+        var newPersonas: [MemberPersona] = []
+        let colors: [Color] = [.blue, .green, .orange, .purple, .pink, .yellow]
+
+        // Helper to find winner of a category group
+        func findWinner(for categories: [String]) -> String? {
+            var totals: [String: Double] = [:]
+            for (user, trans) in groupedByUser {
+                let sum = trans.filter { categories.contains($0.categoryName) }.reduce(0) { $0 + $1.amount }
+                if sum > 0 { totals[user] = sum }
+            }
+            return totals.max(by: { $0.value < $1.value })?.key
+        }
+        
+        // Determine Winners
+        let billsWinner = findWinner(for: ["Faturalar", "Kira", "Elektrik", "Su", "Doğalgaz", "İnternet"])
+        let foodWinner = findWinner(for: ["Yeme & İçme", "Market", "Restoran"])
+        let transportWinner = findWinner(for: ["Ulaşım", "Benzin", "Araba", "Taksi"])
+        
+        let sortedUsers = groupedByUser.map { ($0.key, $0.value.reduce(0){$0 + $1.amount}) }.sorted(by: { $0.1 > $1.1 })
+        
+        for (index, (username, transactions)) in groupedByUser.enumerated() {
+            let color = colors[index % colors.count]
+            var title = "Üye"
+            var icon = "person.fill"
+            var stat = "Takım Oyuncusu"
+            var badgeColor = Color.gray
+            
+            // Priority 1: Evin Direği (Bills)
+            if username == billsWinner {
+                title = "Evin Direği"
+                icon = "house.fill"
+                stat = "Faturaların Efendisi"
+                badgeColor = .blue
+            }
+            // Priority 2: Gurme (Food)
+            else if username == foodWinner {
+                title = "Gurme"
+                icon = "fork.knife"
+                stat = "Boğazına Düşkün"
+                badgeColor = .orange
+            }
+            // Priority 3: Gezgin (Transport)
+            else if username == transportWinner {
+                title = "Gezgin"
+                icon = "car.fill"
+                stat = "Yolların Ustası"
+                badgeColor = .indigo
+            }
+            // Priority 4: Bonkör (Top Spender)
+            else if let topSpender = sortedUsers.first?.0, topSpender == username {
+                title = "Bonkör"
+                icon = "star.fill"
+                stat = "Eli En Açık"
+                badgeColor = .yellow
+            }
+            // Priority 5: Tutumlu (Lowest Spender - if more than 2 users)
+            else if groupedByUser.count > 2, let lowSpender = sortedUsers.last?.0, lowSpender == username {
+                title = "Tutumlu"
+                icon = "leaf.fill"
+                stat = "Ekonomist"
+                badgeColor = .green
+            }
+            
+            newPersonas.append(MemberPersona(
+                username: username,
+                title: title,
+                description: stat, // Reusing description field for short stat/subtitle
+                icon: icon,
+                color: color, // Member's identity color
+                keyStat: stat, // Redundant but keeping compatible with struct
+                badgeColor: badgeColor // NEW
+            ))
+        }
+        
+        self.memberPersonas = newPersonas.sorted(by: { $0.username < $1.username })
+    }
+    
+    private func calculateCategoryMemberMatrix(transactions: [Transaction]) {
+        let groupedByCat = Dictionary(grouping: transactions, by: { $0.categoryName })
+        var breakdown: [CategoryMemberBreakdown] = []
+        let colors: [Color] = [.blue, .green, .orange, .purple, .pink, .yellow] 
+        let allUsers = Set(transactions.map { $0.createdByUsername ?? "Bilinmeyen" }).sorted()
+        
+        for (category, catTransactions) in groupedByCat {
+            let total = catTransactions.reduce(0) { $0 + $1.amount }
+            if total < self.totalExpense * 0.01 { continue }
+            
+            var members: [MemberDouble] = []
+            let groupedByUser = Dictionary(grouping: catTransactions, by: { $0.createdByUsername ?? "Bilinmeyen" })
+            
+            for (username, userTrans) in groupedByUser {
+                let sum = userTrans.reduce(0) { $0 + $1.amount }
+                let index = allUsers.firstIndex(of: username) ?? 0
+                let color = colors[index % colors.count]
+                members.append(MemberDouble(username: username, value: sum, color: color, percentage: (sum/total)*100))
+            }
+            members.sort(by: { $0.value > $1.value })
+            breakdown.append(CategoryMemberBreakdown(id: UUID(), categoryName: category, totalAmount: total, memberShares: members))
+        }
+        self.categoryMemberComparison = breakdown.sorted(by: { $0.totalAmount > $1.totalAmount })
+    }
+    
+    struct CategoryMemberBreakdown: Identifiable {
+        let id: UUID
+        let categoryName: String
+        let totalAmount: Double
+        let memberShares: [MemberDouble]
     }
 
+
+    
+    struct MemberPersona: Identifiable {
+        let id = UUID()
+        let username: String
+        let title: String
+        let description: String
+        let icon: String
+        let color: Color
+        let keyStat: String
+        let badgeColor: Color // NEW
+    }
     private func processDebts() {
         self.totalDebtRemaining = activeDebts.reduce(0) { $0 + $1.remainingAmount }
         
-        // Calculate next immediate payments (e.g. sum of all installment amounts for active debts)
-        // Or specific logic: Next payment needed within current month?
-        // Let's just sum installment amounts of active debts for now as "Monthly Debt Load"
+        // Calculate next immediate payments
         self.upcomingDebtPayment = activeDebts.reduce(0) { $0 + $1.installmentAmount }
     }
     
