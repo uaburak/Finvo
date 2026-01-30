@@ -11,13 +11,17 @@ struct WalletDetailView: View {
     // We only use this for initial ID and static info like OwnerID (which rarely changes).
     let initialWallet: Wallet
     
+    var wallet: Wallet {
+        walletManager.wallets.first(where: { $0.id == initialWallet.id }) ?? initialWallet
+    }
+    
     @State private var showAddMemberSheet = false
     @State private var newMemberUsername = ""
     @State private var showInviteSentAlert = false
     
     var isOwner: Bool {
         guard let uid = AuthenticationManager.shared.user?.uid else { return false }
-        return initialWallet.ownerId == uid
+        return wallet.ownerId == uid
     }
     
     var body: some View {
@@ -27,14 +31,14 @@ struct WalletDetailView: View {
                 HStack {
                     Text("Cüzdan Adı")
                     Spacer()
-                    Text(initialWallet.name)
+                    Text(wallet.name)
                         .foregroundColor(.secondary)
                 }
                 
                 HStack {
                     Text("Tür")
                     Spacer()
-                    Text(initialWallet.type.rawValue.capitalized)
+                    Text(wallet.type.rawValue.capitalized)
                         .foregroundColor(.secondary)
                 }
             }
@@ -54,10 +58,12 @@ struct WalletDetailView: View {
                     }
                     .alert("Üye Davet Et", isPresented: $showAddMemberSheet) {
                         TextField("Kullanıcı Adı", text: $newMemberUsername)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                         Button("İptal", role: .cancel) { newMemberUsername = "" }
                         Button("Davet Gönder") {
                             Task {
-                                let success = await viewModel.inviteMember(username: newMemberUsername, to: initialWallet)
+                                let success = await viewModel.inviteMember(username: newMemberUsername, to: wallet)
                                 if success {
                                     newMemberUsername = ""
                                     showInviteSentAlert = true
@@ -75,7 +81,7 @@ struct WalletDetailView: View {
                 if isOwner {
                     Button(role: .destructive) {
                         Task {
-                            if await viewModel.deleteWallet(initialWallet) {
+                            if await viewModel.deleteWallet(wallet) {
                                 dismiss()
                             }
                         }
@@ -89,7 +95,7 @@ struct WalletDetailView: View {
                 } else {
                     Button(role: .destructive) {
                          Task {
-                             if await viewModel.leaveWallet(initialWallet) {
+                             if await viewModel.leaveWallet(wallet) {
                                  dismiss()
                              }
                          }
@@ -115,7 +121,7 @@ struct WalletDetailView: View {
             Text("Kullanıcıya bildirim gönderildi. Kabul ettiğinde eklenecektir.")
         }
         .onAppear {
-            Task { await viewModel.fetchMembers(for: initialWallet) }
+            Task { await viewModel.fetchMembers(for: wallet) }
         }
     }
     
@@ -136,7 +142,7 @@ struct WalletDetailView: View {
             
             // Role Logic
             let role = viewModel.permissions[member.uid] ?? "editor"
-            let isMemberOwner = (member.uid == initialWallet.ownerId)
+            let isMemberOwner = (member.uid == wallet.ownerId)
             
             if isMemberOwner {
                 Text("Yönetici")
@@ -158,14 +164,14 @@ struct WalletDetailView: View {
                     // Owner can change roles
                     Menu {
                         Button("Düzenleyici Yap") {
-                             Task { await viewModel.updateMemberRole(wallet: initialWallet, userId: member.uid, newRole: "editor") }
+                             Task { await viewModel.updateMemberRole(wallet: wallet, userId: member.uid, newRole: "editor") }
                         }
                         Button("İzleyici Yap") {
-                             Task { await viewModel.updateMemberRole(wallet: initialWallet, userId: member.uid, newRole: "viewer") }
+                             Task { await viewModel.updateMemberRole(wallet: wallet, userId: member.uid, newRole: "viewer") }
                         }
                         Divider()
                         Button("Çıkar", role: .destructive) {
-                             Task { await viewModel.removeMember(userId: member.uid, from: initialWallet) }
+                             Task { await viewModel.removeMember(userId: member.uid, from: wallet) }
                         }
                     } label: {
                         HStack(spacing: 4) {

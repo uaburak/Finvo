@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import FirebaseFirestore
+import SwiftUI
 
 @MainActor
 class DashboardViewModel: ObservableObject {
@@ -146,5 +147,32 @@ class DashboardViewModel: ObservableObject {
         }
     }
     
-
+    // MARK: - Configuration
+    struct QuickActionItem: Identifiable {
+        let id = UUID()
+        let icon: String
+        let label: String
+        let color: Color
+        let actionType: DashboardActionType
+    }
+    
+    enum DashboardActionType: String {
+        case debts = "OpenDebts"
+        case limit = "OpenSpendingLimit"
+        case categories = "OpenCategories"
+        case wallets = "OpenWalletManagement"
+        case reports = "OpenReports"
+        case subscriptions = "OpenSubscriptions"
+        case investments = "OpenInvestments"
+    }
+    
+    let quickActions: [QuickActionItem] = [
+        QuickActionItem(icon: "creditcard.fill", label: "Borçlar", color: .orange, actionType: .debts),
+        QuickActionItem(icon: "gauge.medium", label: "Limitler", color: .purple, actionType: .limit),
+        QuickActionItem(icon: "square.grid.2x2.fill", label: "Kategoriler", color: .blue, actionType: .categories),
+        QuickActionItem(icon: "wallet.pass.fill", label: "Cüzdanlar", color: .gray, actionType: .wallets),
+        QuickActionItem(icon: "chart.pie.fill", label: "Raporlar", color: .pink, actionType: .reports),
+        QuickActionItem(icon: "arrow.triangle.2.circlepath", label: "Abonelik", color: .indigo, actionType: .subscriptions),
+        QuickActionItem(icon: "leaf.fill", label: "Yatırım", color: .green, actionType: .investments)
+    ]
 }

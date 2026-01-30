@@ -5,6 +5,8 @@ struct WalletManagementListView: View {
     @EnvironmentObject var walletManager: WalletManager
     @Environment(\.dismiss) var dismiss
     
+
+    
     var body: some View {
         List {
             ForEach(walletManager.wallets) { wallet in
@@ -45,8 +47,8 @@ struct WalletManagementListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Bitti") {
-                    dismiss()
+                NavigationLink(destination: WalletCreateSheet()) {
+                    Image(systemName: "plus")
                 }
             }
         }

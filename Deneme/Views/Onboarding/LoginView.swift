@@ -1,9 +1,11 @@
 import SwiftUI
 import AuthenticationServices
+import FirebaseAuth
 
 struct LoginView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var errorMessage: String?
+    @State private var currentNonce: String?
     
     var body: some View {
         VStack(spacing: 20) {
@@ -27,28 +29,58 @@ struct LoginView: View {
             
             if let errorMessage = errorMessage {
                 Text(errorMessage)
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .padding()
+                .foregroundColor(.red)
+                .font(.caption)
+                .padding()
             }
             
             // Sign in with Apple Button
             SignInWithAppleButton(
                 onRequest: { request in
+                    let nonce = authManager.randomNonceString()
+                    currentNonce = nonce
                     request.requestedScopes = [.fullName, .email]
-                    // Here you would also generate a nonce for Firebase Auth
+                    request.nonce = authManager.sha256(nonce)
                 },
                 onCompletion: { result in
                     switch result {
                     case .success(let authResults):
-                        // Handle authentication via AuthManager
-                        // verify logic would be in authManager
-                        print("Apple Sign In Success: \(authResults)")
+                        switch authResults.credential {
+                        case let appleIDCredential as ASAuthorizationAppleIDCredential:
+                            guard let nonce = currentNonce else {
+                                fatalError("Invalid state: A login callback was received, but no login request was sent.")
+                            }
+                            guard let appleIDToken = appleIDCredential.identityToken else {
+                                print("Unable to fetch identity token")
+                                return
+                            }
+                            guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+                                print("Unable to serialize token string from data: \(appleIDToken.debugDescription)")
+                                return
+                            }
+                            
+                            Task {
+                                do {
+                                    // Firebase ile giriş yap (fullName credential içinde gönderiliyor)
+                                    try await authManager.signInWithApple(
+                                        idToken: idTokenString,
+                                        nonce: nonce,
+                                        fullName: appleIDCredential.fullName
+                                    )
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                }
+                            }
+                            
+                        default:
+                            break
+                        }
                     case .failure(let error):
                         errorMessage = error.localizedDescription
                     }
                 }
             )
+            .signInWithAppleButtonStyle(.white) // Use .black for dark mode or based on color scheme
             .frame(height: 50)
             .padding(.horizontal)
             
@@ -80,6 +112,26 @@ struct LoginView: View {
             .padding(.horizontal)
             
             Spacer().frame(height: 40)
+            
+            // Gizlilik Politikası ve Şartlar (Apple Review için önemlidir)
+            if #available(iOS 16.0, *) {
+                HStack(spacing: 4) {
+                    Text("Devam ederek")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    Link("Kullanım Şartları", destination: URL(string: "https://finvo.app/terms")!)
+                        .font(.caption)
+                    Text("ve")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    Link("Gizlilik Politikası", destination: URL(string: "https://finvo.app/privacy")!)
+                        .font(.caption)
+                    Text("'nı kabul etmiş olursunuz.")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+                .padding(.bottom, 10)
+            }
         }
         .padding()
     }

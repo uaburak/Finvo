@@ -63,7 +63,7 @@ class AnalyticsViewModel: ObservableObject {
     @Published var topCategoryName: String?
     
     // Valid Transactions Cache
-    private var allTransactions: [Transaction] = []
+    public var allTransactions: [Transaction] = []
     private var userDisplayNames: [String: String] = [:] // Check names
     
     // Structs for Charts
@@ -239,47 +239,13 @@ class AnalyticsViewModel: ObservableObject {
     private func calculatePersonas(groupedByUser: [String: [Transaction]], totalExpense: Double) {
         var newPersonas: [MemberPersona] = []
         
-        // Helper to find winner of a category group
-        // Helper to find top spender for a set of categories (Main or Sub)
-        func findWinner(for categories: [String]) -> (user: String, amount: Double)? {
-            var totals: [String: Double] = [:]
-            for (user, trans) in groupedByUser {
-                // Check unique match in either Category or SubCategory
-                let matchingTrans = trans.filter { t in
-                    categories.contains(t.categoryName) || categories.contains(t.subCategoryName)
-                }
-                let sum = matchingTrans.reduce(0) { $0 + $1.amount }
-                if sum > 0 { totals[user] = sum }
-            }
-            guard let max = totals.max(by: { $0.value < $1.value }) else { return nil }
-            return (user: max.key, amount: max.value)
-        }
-        
-        // Helper for Income Badges (Hack: we need income transactions)
+        // Get generic transactions for processing
         let currentTrans = filterTransactionsByTimeRange(allTransactions, range: selectedTimeRange, offset: 0)
         let incomeTrans = currentTrans.filter { $0.type == .income }
-        let groupedIncome = Dictionary(grouping: incomeTrans, by: { $0.createdByUsername ?? "Bilinmeyen" })
+        let expenseTrans = currentTrans.filter { $0.type == .expense }
         
-        func findIncomeWinner(for categories: [String]) -> (user: String, amount: Double)? {
-             var totals: [String: Double] = [:]
-             for (user, trans) in groupedIncome {
-                 let matchingTrans = trans.filter { t in
-                    categories.contains(t.categoryName) || categories.contains(t.subCategoryName)
-                 }
-                 let sum = matchingTrans.reduce(0) { $0 + $1.amount }
-                 if sum > 0 { totals[user] = sum }
-             }
-             guard let max = totals.max(by: { $0.value < $1.value }) else { return nil }
-             return (user: max.key, amount: max.value)
-        }
-        
-        // Helper to get total income winner
-        func findTopEarner() -> (user: String, amount: Double)? {
-            let sortedInc = groupedIncome.map { ($0.key, $0.value.reduce(0){$0 + $1.amount}) }.sorted(by: { $0.1 > $1.1 })
-            return sortedInc.first
-        }
-        
-        let sortedUsers = groupedByUser.map { ($0.key, $0.value.reduce(0){$0 + $1.amount}) }.sorted(by: { $0.1 > $1.1 })
+        // Helper to check valid users for display (optional filter)
+        // let validUsers = userDisplayNames.keys // If needed
         
         // Helper to get First Name
         func getFirstName(for username: String) -> String {
@@ -287,345 +253,79 @@ class AnalyticsViewModel: ObservableObject {
             return fullName.components(separatedBy: " ").first ?? fullName
         }
         
-        // 1. Evin Direği (Bills)
-        let billsCats = ["Faturalar", "Kira", "Elektrik", "Su", "Doğalgaz", "İnternet", "Aidat", "Telefon"]
-            if let winner = findWinner(for: billsCats) {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Evin Direği",
-                description: "Faturaların Efendisi",
-                icon: "house.fill",
-                color: .blue,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .blue,
-                userId: winner.user,
-                relatedCategories: billsCats
-            ))
+        // Helper: Calculate totals for a specific set of categories (or all)
+        func calculateTotals(for transactions: [Transaction], categories: [String]) -> [String: Double] {
+            var totals: [String: Double] = [:]
+            // Optimization: Filter first, then group? Or Group then filter?
+            // Since we group by user often, maybe Group First is better if user count is low.
+            // But Transaction count is high.
+            // Grouping by User is O(N).
+            
+            let grouped = Dictionary(grouping: transactions, by: { $0.createdByUsername ?? "Bilinmeyen" })
+            
+            for (user, userTrans) in grouped {
+                let sum: Double
+                if categories.isEmpty {
+                    sum = userTrans.reduce(0) { $0 + $1.amount }
+                } else {
+                    sum = userTrans.lazy
+                        .filter { categories.contains($0.categoryName) || categories.contains($0.subCategoryName) }
+                        .reduce(0) { $0 + $1.amount }
+                }
+                
+                if sum > 0 {
+                    totals[user] = sum
+                }
+            }
+            return totals
         }
         
-        // 2. Gurme (Food)
-        let foodCats = ["Yeme & İçme", "Market", "Restoran", "Cafe", "Gıda"]
-        if let winner = findWinner(for: foodCats) {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Gurme",
-                description: "Boğazına Düşkün",
-                icon: "fork.knife",
-                color: .orange,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .orange,
-                userId: winner.user,
-                relatedCategories: foodCats
-            ))
+        // MAIN LOOP
+        for badge in BadgeConfig.allBadges {
+            // 1. Select Base Data
+            let baseTransactions = (badge.transactionType == .income) ? incomeTrans : expenseTrans
+            
+            // 2. Calculate User Totals based on Badge Mode
+            let totals: [String: Double]
+            
+            switch badge.mode {
+            case .highestCategoryVolume(let categories):
+                totals = calculateTotals(for: baseTransactions, categories: categories)
+            case .highestTotalVolume, .lowestTotalVolume:
+                totals = calculateTotals(for: baseTransactions, categories: [])
+            }
+            
+            // 3. Determine Winner
+            var winner: (user: String, amount: Double)? = nil
+            
+            if badge.mode == .lowestTotalVolume {
+                // Special Case: Lowest Spender (Needs at least 2 users to be meaningful)
+                if totals.count >= 2, let min = totals.min(by: { $0.value < $1.value }) {
+                    winner = (user: min.key, amount: min.value)
+                }
+            } else {
+                // Standard: Highest Value wins
+                if let max = totals.max(by: { $0.value < $1.value }) {
+                    winner = (user: max.key, amount: max.value)
+                }
+            }
+            
+            // 4. Create Persona if Winner Found
+            if let w = winner {
+                newPersonas.append(MemberPersona(
+                    username: getFirstName(for: w.user),
+                    title: badge.title,
+                    description: badge.description,
+                    icon: badge.icon,
+                    color: badge.color,
+                    keyStat: w.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
+                    badgeColor: badge.color,
+                    userId: w.user,
+                    relatedCategories: badge.relatedCategories
+                ))
+            }
         }
         
-        // 3. Gezgin (Transport)
-        let transportCats = ["Ulaşım", "Benzin", "Araba", "Taksi", "Otobüs", "Seyahat"]
-        if let winner = findWinner(for: transportCats) {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Gezgin",
-                description: "Yolların Ustası",
-                icon: "car.fill",
-                color: .indigo,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .indigo,
-                userId: winner.user,
-                relatedCategories: transportCats
-            ))
-        }
-        
-        // 4. Teknoloji Tutkunu (Electronics - New!)
-        let techCats = ["Teknoloji", "Elektronik", "Bilgisayar", "Telefon"]
-        if let winner = findWinner(for: techCats) {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Tekno Kurdu",
-                description: "Gelecekten Geliyor",
-                icon: "desktopcomputer",
-                color: .purple,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .purple,
-                userId: winner.user,
-                relatedCategories: techCats
-            ))
-        }
-        
-        // 5. Eğlence (Entertainment)
-        let funCats = ["Eğlence", "Sinema", "Oyun", "Hobi", "Aktivite", "Eğlence & Sosyal"]
-        if let winner = findWinner(for: funCats) {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Parti İnsanı",
-                description: "Hayatını Yaşıyor",
-                icon: "party.popper.fill",
-                color: .pink,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .pink,
-                userId: winner.user,
-                relatedCategories: funCats
-            ))
-        }
-        
-        // --- NEW BADGES ---
-        
-        // 6. Moda İkonu (Shopping/Clothing)
-        let fashionCats = ["Alışveriş", "Giyim", "Ayakkabı", "Aksesuar", "Moda", "Alışveriş & Giyim"]
-        if let winner = findWinner(for: fashionCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Moda İkonu",
-                description: "Tarz Sahibi",
-                icon: "tshirt.fill",
-                color: .cyan,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .cyan,
-                userId: winner.user,
-                relatedCategories: fashionCats
-            ))
-        }
-        
-        // 7. Sağlıkçı (Health)
-        let healthCats = ["Sağlık", "Eczane", "Hastane", "Spor", "Fitness", "Sağlık & Bakım"]
-        if let winner = findWinner(for: healthCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Sağlıkçı",
-                description: "Kendine İyi Bakıyor",
-                icon: "heart.text.square.fill",
-                color: .red,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .red,
-                userId: winner.user,
-                relatedCategories: healthCats
-            ))
-        }
-        
-        // 8. Kişisel Bakım (Self Care)
-        let careCats = ["Kuaför", "Berber", "Kozmetik", "Bakım"]
-        if let winner = findWinner(for: careCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Bakımlı",
-                description: "Işıltısı Yeter",
-                icon: "sparkles",
-                color: .mint,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .mint,
-                userId: winner.user,
-                relatedCategories: careCats
-            ))
-        }
-        
-        // 9. Evcil Hayvan Dostu
-        let petCats = ["Evcil Hayvan", "Veteriner", "Mama"]
-        if let winner = findWinner(for: petCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Hayvan Dostu",
-                description: "Pati Sever",
-                icon: "pawprint.fill",
-                color: .brown,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .brown,
-                userId: winner.user,
-                relatedCategories: petCats
-            ))
-        }
-        
-        // 10. Abonelik Canavarı (Subscriptions)
-        let subCats = ["Dijital Abonelikler", "Netflix", "Spotify", "Apple", "Google"]
-        if let winner = findWinner(for: subCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Abone",
-                description: "Dijital Yerli",
-                icon: "play.tv.fill",
-                color: .indigo,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .indigo,
-                userId: winner.user,
-                relatedCategories: subCats
-            ))
-        }
-        
-        // 11. Eğitim & Kitap
-        let eduCats = ["Eğitim", "Kitap", "Kurs", "Okul", "Kırtasiye"]
-        if let winner = findWinner(for: eduCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Bilgin",
-                description: "Öğrenmeye Açık",
-                icon: "book.fill",
-                color: .orange,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .orange,
-                userId: winner.user,
-                relatedCategories: eduCats
-            ))
-        }
-        
-        // 12. Yatırımcı (Expense to Investment)
-        let investExpCats = ["Yatırım", "Altın Alım", "Döviz Alım", "Bireysel Emeklilik", "Birikim & Yatırım"]
-        if let winner = findWinner(for: investExpCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Yatırımcı",
-                description: "Geleceği Düşünen",
-                icon: "chart.line.uptrend.xyaxis",
-                color: .green,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .green,
-                userId: winner.user,
-                relatedCategories: investExpCats
-            ))
-        }
-        
-        // 13. Borç Yiğidin Kamçısı (Debt Payments)
-        let debtCats = ["Borç Ödeme", "Kredi Kartı", "Kredi", "Borç & Finansal Ödemeler"]
-        if let winner = findWinner(for: debtCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Sadık",
-                description: "Borcunu Bilir",
-                icon: "signature",
-                color: .gray,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .gray,
-                userId: winner.user,
-                relatedCategories: debtCats
-            ))
-        }
-        
-        // 14. Gamer (Subcategories)
-        let gameCats = ["PlayStation Plus", "Xbox Game Pass", "Nintendo Switch Online", "Steam (EA Play vb.)", "Twitch (Sub)", "Hobi / Oyun / Oyuncak"]
-        if let winner = findWinner(for: gameCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Gamer",
-                description: "Oyun Dünyası",
-                icon: "gamecontroller.fill",
-                color: .purple,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .purple,
-                userId: winner.user,
-                relatedCategories: gameCats
-            ))
-        }
-        
-        // 15. Kahve Tutkunu
-        let coffeeCats = ["Kafe / Kahve", "Starbucks", "Kahve"]
-        if let winner = findWinner(for: coffeeCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Kahve Tutkunu",
-                description: "Kafeinsiz Yapamaz",
-                icon: "cup.and.saucer.fill",
-                color: .brown,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .brown,
-                userId: winner.user,
-                relatedCategories: coffeeCats
-            ))
-        }
-        
-        // 16. Dekoratör
-        let decorCats = ["Mobilya / Dekorasyon", "Ev Bakım / Tamirat", "Bahçe / Balkon Bakımı"]
-        if let winner = findWinner(for: decorCats) {
-             newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Dekoratör",
-                description: "Evim Güzel Evim",
-                icon: "lamp.table.fill",
-                color: .orange,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .orange,
-                userId: winner.user,
-                relatedCategories: decorCats
-            ))
-        }
-
-        // --- INCOME BADGES ---
-        
-        // 17. Maaşlı (Salary)
-        let salaryCats = ["Maaş", "Kariyer", "Maaş & Kariyer", "Ana Maaş", "Ek Mesai"]
-        if let winner = findIncomeWinner(for: salaryCats) {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Profesyonel",
-                description: "Emeğinin Karşılığı",
-                icon: "briefcase.fill",
-                color: .blue,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .blue,
-                userId: winner.user,
-                relatedCategories: salaryCats
-            ))
-        }
-        
-        // 18. Pasif Gelir Kralı
-        let passiveCats = ["Yatırım Geliri", "Faiz", "Temettü", "Kira", "Gayrimenkul", "Yatırım & Finansal Gelir", "Konut Kira Geliri"]
-        if let winner = findIncomeWinner(for: passiveCats) {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: winner.user),
-                title: "Rantçı",
-                description: "Para Parayı Çeker",
-                icon: "building.2.fill",
-                color: .purple,
-                keyStat: winner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .purple,
-                userId: winner.user,
-                relatedCategories: passiveCats
-            ))
-        }
-        
-        // 19. Para Babası (Top Earner)
-        if let topEarner = findTopEarner() {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: topEarner.user),
-                title: "Para Babası",
-                description: "En Çok Kazanan",
-                icon: "dollarsign.circle.fill",
-                color: .green,
-                keyStat: topEarner.amount.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .green,
-                userId: topEarner.user,
-                relatedCategories: []
-            ))
-        }
-
-        
-        // 20. Bonkör (Top Spender)
-        if let topSpender = sortedUsers.first {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: topSpender.0),
-                title: "Bonkör",
-                description: "Eli En Açık",
-                icon: "star.fill",
-                color: .yellow,
-                keyStat: topSpender.1.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .yellow,
-                userId: topSpender.0,
-                relatedCategories: [] // All categories basically
-            ))
-        }
-        
-        // 21. Tutumlu (Lowest Spender - if at least 2 users)
-        if sortedUsers.count >= 2, let lowSpender = sortedUsers.last {
-            newPersonas.append(MemberPersona(
-                username: getFirstName(for: lowSpender.0),
-                title: "Tutumlu",
-                description: "Ekonomist",
-                icon: "leaf.fill",
-                color: .green,
-                keyStat: lowSpender.1.formatted(.currency(code: "TRY").precision(.fractionLength(0))),
-                badgeColor: .green,
-                userId: lowSpender.0,
-                relatedCategories: []
-            ))
-        }
-        
-        // Sort
         self.memberPersonas = newPersonas
     }
     private func processDebts() {

@@ -49,6 +49,7 @@ struct MainTabView: View {
 
             
             SettingsView()
+                .environmentObject(walletManager)
                 .tabItem {
                     Label("Ayarlar", systemImage: "gear")
                 }

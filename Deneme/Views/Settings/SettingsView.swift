@@ -78,7 +78,12 @@ struct SettingsView: View {
                 }
                 
                 // Section: Test / Developer
-                Section(header: Text("Test / Geliştirici")) {
+                Section(header: Text("Geliştirici Araçları")) {
+                    NavigationLink(destination: AppTestView()) {
+                        Label("Geliştirici Paneli & Test", systemImage: "hammer.fill")
+                            .foregroundColor(.purple)
+                    }
+                    
                     Toggle("Pro Üyelik (Simülasyon)", isOn: Binding(
                         get: { authManager.currentUserProfile?.isPro ?? false },
                         set: { newValue in
@@ -88,26 +93,6 @@ struct SettingsView: View {
                         }
                     ))
                     .tint(.blue)
-                    
-                    Button {
-                        if let walletId = WalletManager.shared.selectedWallet?.id {
-                            Task {
-                                try? await TestDataService.shared.generateTestData(for: walletId)
-                            }
-                        }
-                    } label: {
-                        Label("Test Verisi Oluştur (100 İşlem)", systemImage: "sparkles")
-                    }
-                    
-                    Button(role: .destructive) {
-                        if let walletId = WalletManager.shared.selectedWallet?.id {
-                            Task {
-                                try? await TestDataService.shared.deleteTestData(for: walletId)
-                            }
-                        }
-                    } label: {
-                        Label("Test Verilerini Sil", systemImage: "trash")
-                    }
                 }
                 
                 // Section: Logout

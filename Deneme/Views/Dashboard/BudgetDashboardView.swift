@@ -5,12 +5,6 @@ struct BudgetDashboardView: View {
     @EnvironmentObject var tabManager: TabManager
     @State private var selectedWidgetIndex = 0
     
-    // Sheet States
-    @State private var showLimitDetail = false
-    @State private var showSpendingDetail = false
-    @State private var showPaymentsDetail = false
-    @State private var showFinancialTips = false
-    
     var body: some View {
         VStack(spacing: 12) { // Tighter spacing for bento grid feel
 
@@ -93,45 +87,37 @@ struct BudgetDashboardView: View {
                 
                 // Row 2: Budget Progress & Top Spending
                 HStack(spacing: 12) {
-                    BudgetProgressCard(viewModel: viewModel)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 160)
-                        .onTapGesture { showLimitDetail = true }
+                    NavigationLink(destination: SpendingLimitDetailView(viewModel: viewModel)) {
+                        BudgetProgressCard(viewModel: viewModel)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 160)
+                    }
                     
-                    TopCategoriesCard(viewModel: viewModel)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 160)
-                        .onTapGesture { showSpendingDetail = true }
+                    NavigationLink(destination: TopSpendingDetailView(viewModel: viewModel)) {
+                        TopCategoriesCard(viewModel: viewModel)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 160)
+                    }
                 }
                 
                 // Row 3: Upcoming Payments & Financial Tip
                 HStack(spacing: 12) {
-                    UpcomingPaymentsCard(viewModel: viewModel)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 160)
-                        .onTapGesture { showPaymentsDetail = true }
+                    NavigationLink(destination: UpcomingPaymentsDetailView(viewModel: viewModel)) {
+                        UpcomingPaymentsCard(viewModel: viewModel)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 160)
+                    }
                     
-                    FinancialTipCard(viewModel: viewModel)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 160)
-                        .onTapGesture { showFinancialTips = true }
+                    NavigationLink(destination: FinancialInsightsView(viewModel: viewModel)) {
+                        FinancialTipCard(viewModel: viewModel)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 160)
+                    }
                 }
             }
             .padding(.horizontal)
             
             Spacer()
-        }
-        .sheet(isPresented: $showLimitDetail) {
-            SpendingLimitDetailView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showSpendingDetail) {
-            TopSpendingDetailView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showPaymentsDetail) {
-            UpcomingPaymentsDetailView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showFinancialTips) {
-            FinancialInsightsView(viewModel: viewModel)
         }
     }
 }
@@ -141,40 +127,42 @@ struct BudgetDashboardView: View {
 struct QuickActionsSlider: View {
     @ObservedObject var viewModel: DashboardViewModel
     
-    // 8 Actions
-    let actions: [(icon: String, label: String, color: Color, action: String)] = [
-        ("creditcard.fill", "Borçlar", .orange, "OpenDebts"),
-        ("gauge.medium", "Limitler", .purple, "OpenSpendingLimit"),
-        ("square.grid.2x2.fill", "Kategoriler", .blue, "OpenCategories"),
-        ("wallet.pass.fill", "Cüzdanlar", .gray, "OpenWalletManagement"),
-        ("chart.pie.fill", "Raporlar", .pink, "OpenReports"),
-        ("arrow.triangle.2.circlepath", "Abonelik", .indigo, "OpenSubscriptions"),
-        ("leaf.fill", "Yatırım", .green, "OpenInvestments"),
-        ("gearshape.fill", "Ayarlar", .secondary, "OpenSettings")
-    ]
-    
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                ForEach(0..<actions.count, id: \.self) { index in
-                    let item = actions[index]
+                ForEach(viewModel.quickActions) { item in
                     
-                    // Handle Navigation or Notification
-                    if item.action == "OpenDebts" {
+                    // Direct Navigation for All Items
+                    if item.actionType == .debts {
                         NavigationLink(destination: DebtsDetailView(viewModel: AnalyticsViewModel(from: viewModel))) {
                             QuickActionSquare(icon: item.icon, label: item.label, color: item.color)
                         }
-                    } else if item.action == "OpenCategories" {
+                    } else if item.actionType == .categories {
                         NavigationLink(destination: CategoryListView()) {
                             QuickActionSquare(icon: item.icon, label: item.label, color: item.color)
                         }
-                    } else {
-                        Button {
-                            NotificationCenter.default.post(name: NSNotification.Name(item.action), object: nil)
-                        } label: {
+                    } else if item.actionType == .limit {
+                        NavigationLink(destination: SpendingLimitDetailView(viewModel: viewModel)) {
                             QuickActionSquare(icon: item.icon, label: item.label, color: item.color)
                         }
-                    }
+                    } else if item.actionType == .wallets {
+                        NavigationLink(destination: WalletManagementListView()) {
+                            QuickActionSquare(icon: item.icon, label: item.label, color: item.color)
+                        }
+                    } else if item.actionType == .reports {
+                        NavigationLink(destination: ReportsView()) {
+                            QuickActionSquare(icon: item.icon, label: item.label, color: item.color)
+                        }
+                    } else if item.actionType == .subscriptions {
+                        NavigationLink(destination: SubscriptionsView()) {
+                            QuickActionSquare(icon: item.icon, label: item.label, color: item.color)
+                        }
+                    } else if item.actionType == .investments {
+                        NavigationLink(destination: InvestmentsView()) {
+                            QuickActionSquare(icon: item.icon, label: item.label, color: item.color)
+                        }
+                    } 
+                    // Settings removed
                 }
             }
             .padding(.horizontal)

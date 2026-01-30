@@ -20,7 +20,8 @@ class WalletDetailViewModel: ObservableObject {
     
     // 2. Invite Member
     func inviteMember(username: String, to wallet: Wallet) async -> Bool {
-        guard let walletId = wallet.id else { return false }
+        let cleanUsername = username.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let walletId = wallet.id, !cleanUsername.isEmpty else { return false }
         
         // Get Current User info for the invite
         guard let currentUser = AuthenticationManager.shared.user else { return false }
@@ -32,7 +33,7 @@ class WalletDetailViewModel: ObservableObject {
         
         do {
             // A. Find User
-            guard let userToInvite = try await firestoreService.findUser(byUsername: username) else {
+            guard let userToInvite = try await firestoreService.findUser(byUsername: cleanUsername) else {
                 errorMessage = "Kullanıcı bulunamadı."
                 isLoading = false
                 return false

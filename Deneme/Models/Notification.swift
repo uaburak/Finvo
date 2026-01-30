@@ -5,6 +5,7 @@ enum NotificationType: String, Codable {
     case info // General info
     case rejection // "User rejected your invite"
     case acceptance // "User accepted your invite"
+    case system // System alerts or tests (Added for DevPanel)
 }
 
 struct AppNotification: Identifiable, Codable {
