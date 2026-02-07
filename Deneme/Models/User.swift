@@ -9,6 +9,8 @@ struct User: Identifiable, Codable {
     var displayName: String?
     var photoURL: String?
     var isPro: Bool
+    var currency: String? // Default "₺"
+    var gender: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -18,5 +20,7 @@ struct User: Identifiable, Codable {
         case displayName
         case photoURL
         case isPro
+        case currency
+        case gender
     }
 }

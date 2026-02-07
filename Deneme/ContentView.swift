@@ -10,7 +10,7 @@ struct ContentView: View {
                 if authManager.isProfileComplete {
                     MainTabView()
                 } else {
-                    ProfileCreationView()
+                    ExtendedOnboardingView()
                 }
             } else {
                 if isOnboardingSeen {

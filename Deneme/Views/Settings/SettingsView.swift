@@ -33,7 +33,7 @@ struct SettingsView: View {
                         }
                         
                         VStack(alignment: .leading) {
-                            Text(authManager.user?.displayName ?? "Kullanıcı")
+                            Text(authManager.currentUserProfile?.displayName ?? authManager.user?.displayName ?? "Kullanıcı")
                                 .font(.headline)
                             Text(authManager.user?.email ?? "")
                                 .font(.caption)

@@ -7,8 +7,7 @@ final class TabManager: ObservableObject {
     
     // Tab Indices
     static let dashboard = 0
-    static let transactions = 1
-    static let analytics = 2
-    static let categories = 3
-    static let settings = 4
+    static let analytics = 1
+    static let categories = 2
+    static let settings = 3
 }

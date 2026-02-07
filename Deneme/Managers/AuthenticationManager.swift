@@ -12,6 +12,7 @@ class AuthenticationManager: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var isProfileComplete: Bool = false
     @Published var currentUserProfile: User?
+    var pendingExternalName: String? // For Apple Sign In
     
     private let db = Firestore.firestore()
     
@@ -97,7 +98,7 @@ class AuthenticationManager: ObservableObject {
             try await changeRequest.commitChanges()
             // Firestore tarafını da güncellemek isterseniz:
              if let uid = self.user?.uid {
-                 try? await db.collection("users").document(uid).setData(["name": name], merge: true)
+                 try? await db.collection("users").document(uid).setData(["displayName": name], merge: true)
              }
         } catch {
             print("Profil güncelleme hatası: \(error)")

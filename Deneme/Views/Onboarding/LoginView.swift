@@ -82,6 +82,7 @@ struct LoginView: View {
             )
             .signInWithAppleButtonStyle(.white) // Use .black for dark mode or based on color scheme
             .frame(height: 50)
+            .clipShape(Capsule())
             .padding(.horizontal)
             
             // Google Sign In Button (Custom UI)
@@ -103,9 +104,9 @@ struct LoginView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
                 .background(Color.white)
-                .cornerRadius(8)
+                .clipShape(Capsule())
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    Capsule()
                         .stroke(Color.gray.opacity(0.5), lineWidth: 1)
                 )
             }
@@ -115,22 +116,22 @@ struct LoginView: View {
             
             // Gizlilik Politikası ve Şartlar (Apple Review için önemlidir)
             if #available(iOS 16.0, *) {
-                HStack(spacing: 4) {
-                    Text("Devam ederek")
+                VStack(spacing: 8) {
+                    Text("Devam ederek şunları kabul etmiş olursunuz:")
                         .foregroundColor(.secondary)
                         .font(.caption)
-                    Link("Kullanım Şartları", destination: URL(string: "https://finvo.app/terms")!)
-                        .font(.caption)
-                    Text("ve")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                    Link("Gizlilik Politikası", destination: URL(string: "https://finvo.app/privacy")!)
-                        .font(.caption)
-                    Text("'nı kabul etmiş olursunuz.")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
+                    
+                    VStack(spacing: 4) {
+                        Link("Kullanım Şartları", destination: URL(string: "https://finvo.app/terms")!)
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        
+                        Link("Gizlilik Politikası", destination: URL(string: "https://finvo.app/privacy")!)
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, 20)
             }
         }
         .padding()
