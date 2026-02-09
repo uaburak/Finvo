@@ -38,8 +38,30 @@ struct ContentView: View {
     @State private var activeTab: CustomTab = .dashboard
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
+    @AppStorage("isOnboardingSeen") var isOnboardingSeen: Bool = false
     
     var body: some View {
+        Group {
+            if authManager.isAuthenticated {
+                if authManager.isProfileComplete {
+                    customTabBarView
+                } else {
+                    ExtendedOnboardingView()
+                }
+            } else {
+                if isOnboardingSeen {
+                    LoginView()
+                } else {
+                    OnboardingView()
+                }
+            }
+        }
+        .animation(.default, value: authManager.isAuthenticated)
+        .animation(.default, value: authManager.isProfileComplete)
+    }
+    
+    @ViewBuilder
+    var customTabBarView: some View {
         TabView(selection: $activeTab) {
             Tab.init(value: .dashboard) {
                 DashboardView()
@@ -56,10 +78,11 @@ struct ContentView: View {
                     .toolbarVisibility(.hidden, for: .tabBar)
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .contentMargins(.bottom, 80, for: .scrollContent)
+        .safeAreaBar(edge: .bottom, spacing: 0) {
             CustomTabBarView()
-                .padding(.horizontal, 20)
-                .offset(y: 10)
+                .padding(.horizontal, 16)
+                .offset(y: 14)
         }
     }
     

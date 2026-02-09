@@ -126,7 +126,6 @@ struct PersonaDetailView: View {
                         .padding(.horizontal)
                     }
                 }
-                .padding(.bottom, 40)
             }
         }
         .navigationBarTitleDisplayMode(.inline)

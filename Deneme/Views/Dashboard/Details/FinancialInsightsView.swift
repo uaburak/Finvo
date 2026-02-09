@@ -47,7 +47,6 @@ struct FinancialInsightsView: View {
                         .padding(.horizontal)
                     }
                 }
-                .padding(.bottom, 40)
             }
             .background(Color(UIColor.systemGroupedBackground))
             .navigationTitle("Finansal İpuçları")

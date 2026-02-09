@@ -110,7 +110,6 @@ struct UpcomingPaymentsDetailView: View {
                         }
                     }
                 }
-                .padding(.bottom, 40)
             }
             .background(Color(UIColor.systemGroupedBackground))
             .navigationTitle("Ödeme Takvimi")

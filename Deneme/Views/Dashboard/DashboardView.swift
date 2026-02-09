@@ -21,29 +21,6 @@ struct DashboardView: View {
         NavigationStack {
             mainContent
                 .toolbar { toolbarContent }
-                .overlay(alignment: .bottomTrailing) {
-                     // FAB Button
-                     if let wallet = walletManager.selectedWallet {
-                         Button {
-                             if let uid = authManager.user?.uid {
-                                 if wallet.canEdit(userId: uid) {
-                                     showAddTransaction = true
-                                 } else {
-                                     showPermissionAlert = true
-                                 }
-                             }
-                         } label: {
-                             Image(systemName: "plus")
-                                 .font(.title.weight(.semibold))
-                                 .foregroundColor(.white)
-                                 .frame(width: 56, height: 56)
-                                 .background(Color.blue)
-                                 .clipShape(Circle())
-                                 .shadow(radius: 4, x: 0, y: 4)
-                         }
-                         .padding()
-                     }
-                }
                 .sheet(isPresented: $showAddTransaction) {
                      if let wallet = walletManager.selectedWallet, let walletId = wallet.id {
                          AddTransactionView(walletId: walletId)
@@ -168,6 +145,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .refreshable {
             if let wallet = walletManager.selectedWallet {
                 await viewModel.refreshDashboard(for: wallet)

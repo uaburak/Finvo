@@ -93,8 +93,8 @@ struct AnalyticsView: View {
                         .padding(.horizontal)
                     }
                 }
-                .padding(.bottom, 40)
             }
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .background(Color(UIColor.systemGroupedBackground))
             .navigationTitle("Analiz")
             .navigationBarTitleDisplayMode(.inline)
@@ -480,7 +480,6 @@ struct CategoriesBreakdownView: View {
                 // Interactive List
                 listSection
             }
-            .padding(.bottom, 40)
         }
         .background(Color(UIColor.systemGroupedBackground))
         .navigationTitle("Kategori Detayları")
