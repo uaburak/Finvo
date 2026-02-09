@@ -36,6 +36,7 @@ enum CustomTab: String, CaseIterable {
 
 struct ContentView: View {
     @State private var activeTab: CustomTab = .dashboard
+    @State private var showAddTransaction = false
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
     @AppStorage("isOnboardingSeen") var isOnboardingSeen: Bool = false
@@ -84,6 +85,24 @@ struct ContentView: View {
                 .padding(.horizontal, 16)
                 .offset(y: 14)
         }
+        .sheet(isPresented: $showAddTransaction) {
+            if let wallet = walletManager.selectedWallet, let walletId = wallet.id {
+                AddTransactionView(walletId: walletId)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(28)
+            } else {
+                VStack(spacing: 16) {
+                    Image(systemName: "wallet.pass")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    Text("Lütfen önce bir cüzdan oluşturun.")
+                        .foregroundColor(.secondary)
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
+        }
     }
     
     @ViewBuilder
@@ -91,8 +110,7 @@ struct ContentView: View {
         GlassEffectContainer(spacing: 10) {
             HStack(spacing: 10) {
                 GeometryReader {
-                    /// Type 1
-                    CustomTabBar(size: $0.size, barTint: .gray.opacity(0.3), activeTab: $activeTab) { tab in
+                    CustomTabBar(size: $0.size, barTint: .gray.opacity(0.2), activeTab: $activeTab) { tab in
                         VStack(spacing: 3) {
                             Image(systemName: tab.symbol)
                                 .font(.title3)
@@ -105,20 +123,22 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .glassEffect(.regular.interactive(), in: .capsule)
-
-                    
                 }
                 
-                ZStack {
-                    ForEach(CustomTab.allCases, id: \.rawValue) { tab in
-                        Image(systemName: tab.actionSymbol)
-                            .font(.system(size: 22, weight: .medium))
-                            .blurFade(activeTab == tab)
-                    }
+                // Add Button
+                Button {
+                    showAddTransaction = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
                 }
                 .frame(width: 60, height: 60)
+                .background(
+                    Circle()
+                        .fill(.tint)
+                )
                 .glassEffect(.regular.interactive(), in: .capsule)
-                .animation(.smooth(duration: 0.55, extraBounce: 0), value: activeTab)
             }
         }
         .frame(height: 60)
