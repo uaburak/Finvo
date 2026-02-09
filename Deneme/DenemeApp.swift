@@ -20,11 +20,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct DenemeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var authManager = AuthenticationManager.shared
+    @StateObject private var walletManager = WalletManager.shared
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authManager)
+                .environmentObject(walletManager)
         }
     }
 }
